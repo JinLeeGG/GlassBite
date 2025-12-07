@@ -5,7 +5,7 @@
 ![GlassBite](https://img.shields.io/badge/Status-Production%20Ready-success)
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![WhatsApp](https://img.shields.io/badge/WhatsApp-Enabled-25D366)
-![AI](https://img.shields.io/badge/AI-Gemini%20%7C%20USDA-orange)
+![AI](https://img.shields.io/badge/AI-Gemini-orange)
 
 **Snap a photo with your smart glasses. AI tracks everything. Zero manual entry.**
 
