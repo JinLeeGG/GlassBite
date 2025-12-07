@@ -554,17 +554,31 @@ Don't skip meals"""
     
     def handle_help(self):
         """Show help message"""
-        return """I can help you with:
+        return """Hey I'm GlassBite! Here's what I can do:
 
-How am I doing today?
-Am I meeting my goal?
-Compare today vs yesterday
-Show me patterns
-What should I eat next?
-What did I eat yesterday?
-My goal is 2000 calories
+MEAL TRACKING
+Send food photos - I'll log everything automatically
 
-Just ask naturally! Send food photos to log meals."""
+DAILY CHECK-INS
+"How am I doing today?" - Today's summary 
+"What's my protein intake?" - Specific nutrients
+"Am I meeting my goal?" - Goal progress
+
+COMPARE & ANALYZE
+"Compare today vs yesterday" - Daily comparison
+"Show me patterns" - Week trends
+
+HISTORY
+"What did I eat yesterday?" - Past meals
+
+PLANNING
+"What should I eat next?" - Smart recommendations
+
+GOALS
+"My goal is 2000 calories" - Set calorie target
+"My protein goal is 150g" - Set protein target
+
+Just talk naturally! I understand questions in many ways."""
 
 
 # Singleton instance
