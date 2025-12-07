@@ -223,11 +223,13 @@ class ChatbotService:
         if 'protein' in message_text.lower():
             goal_type = 'protein_target'
             unit = 'g'
+            other_goal_type = 'calorie_target'
         else:
             goal_type = 'calorie_target'
             unit = 'calories'
+            other_goal_type = 'protein_target'
         
-        # Deactivate old goals
+        # Deactivate old goals of this type
         old_goals = Goal.query.filter_by(
             user_id=user_id,
             goal_type=goal_type,
@@ -248,7 +250,20 @@ class ChatbotService:
         db.session.add(goal)
         db.session.commit()
         
-        return f"Goal set! Targeting {target} {unit} per day."
+        response = f"Goal set! Targeting {target} {unit} per day."
+        
+        # Check if user has other active goals
+        other_goal = Goal.query.filter_by(
+            user_id=user_id,
+            goal_type=other_goal_type,
+            is_active=True
+        ).first()
+        
+        if other_goal:
+            other_unit = 'calories' if other_goal_type == 'calorie_target' else 'g protein'
+            response += f"\n\nYou also have a {other_unit} goal of {other_goal.target_value:.0f}."
+        
+        return response
     
     def handle_daily_summary(self, user_id, date_str='today'):
         """Get today's nutrition totals"""
@@ -334,64 +349,97 @@ Meals logged: {summary.meal_count}"""
         return "I can check today or this week."
     
     def handle_goal_progress(self, user_id):
-        """Show goal progress"""
+        """Show goal progress for all active goals"""
         
-        # Get calorie goal first (most common query)
-        goal = Goal.query.filter_by(
+        # Get both calorie and protein goals
+        calorie_goal = Goal.query.filter_by(
             user_id=user_id,
             goal_type='calorie_target',
             is_active=True
         ).first()
         
-        # If no calorie goal, check for protein goal
-        if not goal:
-            goal = Goal.query.filter_by(
-                user_id=user_id,
-                goal_type='protein_target',
-                is_active=True
-            ).first()
+        protein_goal = Goal.query.filter_by(
+            user_id=user_id,
+            goal_type='protein_target',
+            is_active=True
+        ).first()
         
-        if not goal:
-            return "You haven't set a goal yet. Send me 'My goal is 2000 calories' to get started!"
+        if not calorie_goal and not protein_goal:
+            return "You haven't set any goals yet. Send me 'My goal is 2000 calories' to get started!"
         
         summary = DailySummary.query.filter_by(
             user_id=user_id,
             date=date.today()
         ).first()
         
+        # If no summary, show goals without progress
         if not summary:
-            goal_type_clean = goal.goal_type.replace('_target', '').replace('calorie', 'calories')
-            return f"No meals logged today. Your goal is {goal.target_value:.0f} {goal_type_clean}."
+            response_parts = ["No meals logged today."]
+            if calorie_goal:
+                response_parts.append(f"Calorie goal: {calorie_goal.target_value:.0f} calories")
+            if protein_goal:
+                response_parts.append(f"Protein goal: {protein_goal.target_value:.0f}g")
+            return "\n".join(response_parts)
         
-        if goal.goal_type in ['calorie_target', 'calories']:
-            current = summary.total_calories
-            unit = 'calories'
-        elif goal.goal_type in ['protein_target', 'protein']:
-            current = summary.total_protein
-            unit = 'g protein'
-        else:
-            current = 0
-            unit = ''
+        response_parts = []
         
-        percentage = (current / goal.target_value * 100) if goal.target_value > 0 else 0
-        remaining = goal.target_value - current
+        # Show calorie progress if goal exists
+        if calorie_goal:
+            current_cal = summary.total_calories
+            percentage_cal = (current_cal / calorie_goal.target_value * 100) if calorie_goal.target_value > 0 else 0
+            remaining_cal = calorie_goal.target_value - current_cal
+            
+            cal_section = f"""Calorie Goal:
+Target: {calorie_goal.target_value:.0f} calories
+Current: {current_cal:.0f} calories
+Progress: {percentage_cal:.0f}%"""
+            
+            if remaining_cal > 0:
+                cal_section += f"\n{remaining_cal:.0f} calories remaining"
+            else:
+                cal_section += f"\n{abs(remaining_cal):.0f} calories over goal"
+            
+            response_parts.append(cal_section)
         
-        response = f"""Goal Progress:
-
-Target: {goal.target_value:.0f} {unit}
-Current: {current:.0f} {unit}
-Progress: {percentage:.0f}%"""
+        # Show protein progress if goal exists
+        if protein_goal:
+            current_protein = summary.total_protein
+            percentage_protein = (current_protein / protein_goal.target_value * 100) if protein_goal.target_value > 0 else 0
+            remaining_protein = protein_goal.target_value - current_protein
+            
+            protein_section = f"""Protein Goal:
+Target: {protein_goal.target_value:.0f}g
+Current: {current_protein:.0f}g
+Progress: {percentage_protein:.0f}%"""
+            
+            if remaining_protein > 0:
+                protein_section += f"\n{remaining_protein:.0f}g remaining"
+            else:
+                protein_section += f"\n{abs(remaining_protein):.0f}g over goal"
+            
+            response_parts.append(protein_section)
         
-        if remaining > 0:
-            response += f"\n\n{remaining:.0f} {unit} remaining"
-            if percentage < 50:
-                response += "\nKeep going!"
-            elif percentage < 90:
-                response += "\nGreat progress!"
-        else:
-            response += f"\n\n{abs(remaining):.0f} {unit} over goal"
+        # Add encouragement based on overall progress
+        if calorie_goal or protein_goal:
+            avg_percentage = 0
+            count = 0
+            if calorie_goal and summary:
+                avg_percentage += (summary.total_calories / calorie_goal.target_value * 100)
+                count += 1
+            if protein_goal and summary:
+                avg_percentage += (summary.total_protein / protein_goal.target_value * 100)
+                count += 1
+            
+            if count > 0:
+                avg_percentage /= count
+                if avg_percentage < 50:
+                    response_parts.append("\nKeep going!")
+                elif avg_percentage < 90:
+                    response_parts.append("\nGreat progress!")
+                else:
+                    response_parts.append("\nAlmost there!")
         
-        return response
+        return "\n\n".join(response_parts)
     
     def handle_comparison(self, user_id):
         """Compare today vs yesterday"""
