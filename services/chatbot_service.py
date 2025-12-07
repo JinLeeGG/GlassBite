@@ -34,6 +34,10 @@ class ChatbotService:
         if any(word in message for word in ['what is my goal', "what's my goal", 'my progress', 'goal progress', 'am i meeting', 'meeting my goal', 'what is my progress', "what's my progress", 'how am i doing']):
             return 'goal_progress', {}
         
+        # Comparison queries (check BEFORE timeframe-based queries to avoid misclassification)
+        if any(word in message for word in ['compare', 'vs', 'versus', 'difference']):
+            return 'comparison', {}
+        
         # Meal history queries (check first before daily summary)
         if any(word in message for word in ['what did i eat', 'what did i have', 'what did i had', 'show me what', 'what have i eaten']):
             timeframe = self.extract_timeframe(message)
@@ -53,10 +57,6 @@ class ChatbotService:
             nutrient = self.extract_nutrient(message)
             timeframe = self.extract_timeframe(message)
             return 'nutrient_query', {'nutrient': nutrient, 'timeframe': timeframe}
-        
-        # Comparison queries
-        if any(word in message for word in ['compare', 'vs', 'versus', 'difference']):
-            return 'comparison', {}
         
         # Pattern analysis
         if any(word in message for word in ['pattern', 'usually', 'tend to', 'eating habits']):
