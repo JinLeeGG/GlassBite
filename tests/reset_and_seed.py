@@ -7,33 +7,53 @@ from database_utils import db
 from models import User, Meal, FoodItem, DailySummary, Goal
 from config import Config
 import random
+import os
 
-def reset_database():
-    """Drop all data from tables"""
-    print("🗑️  Clearing all data...")
+def clear_user_data(user_id):
+    """Clear meal data for a specific user only (keeps user record)"""
+    print(f"🗑️  Clearing data for user ID {user_id}...")
     
-    # Delete in order to respect foreign keys
-    FoodItem.query.delete()
-    Meal.query.delete()
-    DailySummary.query.delete()
-    Goal.query.delete()
-    User.query.delete()
+    # Get all meals for this user
+    meals = Meal.query.filter_by(user_id=user_id).all()
+    meal_ids = [m.id for m in meals]
+    
+    if meal_ids:
+        # Delete food items for these meals
+        FoodItem.query.filter(FoodItem.meal_id.in_(meal_ids)).delete(synchronize_session=False)
+        # Delete the meals
+        Meal.query.filter_by(user_id=user_id).delete()
+    
+    # Delete summaries and goals for this user
+    DailySummary.query.filter_by(user_id=user_id).delete()
+    Goal.query.filter_by(user_id=user_id).delete()
     
     db.session.commit()
-    print("✅ All data cleared!")
+    print(f"✅ Data cleared for user ID {user_id}!")
 
 def seed_test_data():
     """Add realistic test data"""
     print("🌱 Seeding test data...")
     
-    # Create test user
-    user = User(
-        phone_number="+1234567890",
-        created_at=datetime.now() - timedelta(days=14)
-    )
-    db.session.add(user)
-    db.session.commit()
-    print(f"✅ Created user: {user.phone_number}")
+    # Find user with WhatsApp phone number format
+    user = User.query.filter(User.phone_number.like('whatsapp:%')).first()
+    
+    if not user:
+        # Fallback: use any existing user
+        user = User.query.first()
+        
+    if not user:
+        # Create test user if none exists
+        user = User(
+            phone_number="+1234567890",  # Default test number
+            created_at=datetime.now() - timedelta(days=14)
+        )
+        db.session.add(user)
+        db.session.commit()
+        print(f"✅ Created test user: {user.phone_number}")
+    else:
+        # Clear existing data for this user before seeding
+        clear_user_data(user.id)
+        print(f"✅ Using existing user: {user.phone_number} (ID: {user.id})")
     
     # Sample meals for the last 7 days
     meal_templates = [
@@ -104,8 +124,8 @@ def seed_test_data():
     
     meal_types = ['breakfast', 'lunch', 'dinner', 'snack']
     
-    # Generate meals for last 7 days
-    for day_offset in range(7):
+    # Generate meals for last 7 days (from 6 days ago to today)
+    for day_offset in range(6, -1, -1):  # 6, 5, 4, 3, 2, 1, 0
         date = datetime.now() - timedelta(days=day_offset)
         
         # 3-4 meals per day
@@ -182,7 +202,7 @@ def seed_test_data():
         )
         db.session.add(summary)
         
-        print(f"✅ Day {day_offset + 1}: {num_meals} meals, {daily_totals['calories']:.0f} cal")
+        print(f"✅ Day {7 - day_offset}: {num_meals} meals, {daily_totals['calories']:.0f} cal")
     
     # Add goals
     calorie_goal = Goal(
@@ -212,16 +232,9 @@ if __name__ == '__main__':
     
     with app.app_context():
         print("=" * 60)
-        print("DATABASE RESET & SEED")
+        print("DATABASE SEED (preserves WhatsApp user)")
         print("=" * 60)
-        
-        confirm = input("⚠️  This will DELETE ALL DATA. Continue? (yes/no): ")
-        
-        if confirm.lower() == 'yes':
-            reset_database()
-            seed_test_data()
-            print("\n" + "=" * 60)
-            print("✅ COMPLETE!")
-            print("=" * 60)
-        else:
-            print("❌ Cancelled.")
+        seed_test_data()
+        print("\n" + "=" * 60)
+        print("✅ COMPLETE!")
+        print("=" * 60)

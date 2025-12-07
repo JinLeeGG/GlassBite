@@ -30,9 +30,18 @@ class ChatbotService:
         if any(word in message for word in ['my goal is', 'set goal', 'target', 'goal:']):
             return 'goal_setting', {}
         
+        # Meal history queries (check first before daily summary)
+        if any(word in message for word in ['what did i eat', 'what did i have', 'what did i had', 'show me what', 'what have i eaten']):
+            timeframe = self.extract_timeframe(message)
+            return 'history_query', {'timeframe': timeframe}
+        
+        if any(word in message for word in ['yesterday', 'last week', 'last month']):
+            timeframe = self.extract_timeframe(message)
+            return 'history_query', {'timeframe': timeframe}
+        
         # Today's summary
         if any(word in message for word in ['today', 'so far']):
-            if any(word in message for word in ['total', 'ate', 'eaten', 'doing', 'summary']):
+            if any(word in message for word in ['total', 'doing', 'summary', 'how am i', 'how\'s my']):
                 return 'daily_summary', {'date': 'today'}
         
         # Specific nutrient query
@@ -56,11 +65,6 @@ class ChatbotService:
         # Recommendations
         if any(word in message for word in ['what should', 'recommend', 'suggest', 'should i eat']):
             return 'recommendation', {}
-        
-        # Meal history
-        if any(word in message for word in ['yesterday', 'last week', 'last month']):
-            timeframe = self.extract_timeframe(message)
-            return 'history_query', {'timeframe': timeframe}
         
         # Help/General
         if any(word in message for word in ['help', 'what can', 'how do', 'commands']):
@@ -518,16 +522,27 @@ Don't skip meals"""
     def handle_history_query(self, user_id, timeframe):
         """Show meal history"""
         
-        if timeframe == 'yesterday':
+        if timeframe == 'today':
+            target_date = date.today()
+            start_datetime = datetime.combine(target_date, datetime.min.time())
+            end_datetime = datetime.combine(target_date, datetime.max.time())
+        elif timeframe == 'yesterday':
             target_date = date.today() - timedelta(days=1)
+            start_datetime = datetime.combine(target_date, datetime.min.time())
+            end_datetime = datetime.combine(target_date, datetime.max.time())
         elif timeframe == 'this_week':
             target_date = date.today() - timedelta(days=7)
+            start_datetime = datetime.combine(target_date, datetime.min.time())
+            end_datetime = datetime.now()
         else:
-            target_date = date.today() - timedelta(days=1)
+            target_date = date.today()
+            start_datetime = datetime.combine(target_date, datetime.min.time())
+            end_datetime = datetime.combine(target_date, datetime.max.time())
         
         meals = Meal.query.filter(
             Meal.user_id == user_id,
-            Meal.timestamp >= datetime.combine(target_date, datetime.min.time()),
+            Meal.timestamp >= start_datetime,
+            Meal.timestamp <= end_datetime,
             Meal.processing_status == 'completed'
         ).order_by(Meal.timestamp).all()
         
