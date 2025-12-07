@@ -25,59 +25,114 @@ class ChatbotService:
             Tuple of (question_type, params)
         """
         message = message_text.lower()
+        words = set(message.split())
         
-        # Goal setting (check FIRST - more specific patterns with numbers)
+        # ===== GOAL SETTING (check FIRST - most specific) =====
+        # Strict pattern: explicit goal setting with numbers
         if re.search(r'(my goal is|goal is|set.+goal).+\d+', message):
             return 'goal_setting', {}
         
-        # Goal progress (questions about goals - check before general nutrient queries)
-        if any(word in message for word in ['what is my goal', "what's my goal", 'my progress', 'goal progress', 'am i meeting', 'meeting my goal', 'what is my progress', "what's my progress", 'how am i doing']):
+        # Pattern: "goal" + number + unit (e.g., "goal 2000 calories")
+        if re.search(r'\bgoal\b.{0,10}\d+', message):
+            if any(word in message for word in ['calorie', 'protein', 'carb', 'fat']):
+                return 'goal_setting', {}
+        
+        # Fuzzy: "I want" + number + (calories/protein)
+        if re.search(r'\d+', message):
+            if any(phrase in message for phrase in ['i want', 'target', 'aim for', 'trying to']):
+                return 'goal_setting', {}
+        
+        # ===== GOAL PROGRESS (check before daily summary to avoid "how am i doing" conflict) =====
+        # Strict patterns
+        goal_progress_strict = [
+            'what is my goal', "what's my goal", 'whats my goal',
+            'my progress', 'goal progress', 'my goal',
+            'am i meeting', 'meeting my goal',
+            'what is my progress', "what's my progress"
+        ]
+        if any(phrase in message for phrase in goal_progress_strict):
             return 'goal_progress', {}
         
-        # Comparison queries (check BEFORE timeframe-based queries to avoid misclassification)
+        # Fuzzy: question words + goal/progress words
+        # But skip if it's clearly NOT a question (negative statements, uncertain statements)
+        if 'goal' in words or 'progress' in words or 'target' in words:
+            # Skip negative/uncertain statements
+            if any(neg in message for neg in ["don't think", "not sure", "maybe", "crushing", "??"]):
+                pass  # Continue to other checks
+            else:
+                question_words = {'what', 'show', 'check', 'tell', 'whats'}
+                if words & question_words:
+                    return 'goal_progress', {}
+        
+        # Natural variations for goal progress
+        if any(phrase in message for phrase in ['on track', 'hit my goal', 'am i over', 'how\'s it going', "what's my status"]):
+            return 'goal_progress', {}
+        
+        # ===== COMPARISON (check BEFORE timeframe queries) =====
         if any(word in message for word in ['compare', 'vs', 'versus', 'difference']):
             return 'comparison', {}
         
-        # Meal history queries (check first before daily summary)
-        if any(word in message for word in ['what did i eat', 'what did i have', 'what did i had', 'show me what', 'what have i eaten']):
+        # ===== MEAL HISTORY (check before daily summary) =====
+        history_patterns = [
+            'what did i eat', 'what did i have', 'what did i had',
+            'show me what', 'what have i eaten', 'what i ate',
+            'tell me what i ate', 'show me my meals', 'my meals',
+            'food log', 'meal log', 'eating log'
+        ]
+        if any(phrase in message for phrase in history_patterns):
             timeframe = self.extract_timeframe(message)
             return 'history_query', {'timeframe': timeframe}
         
-        if any(word in message for word in ['yesterday', 'last week', 'last month']):
-            timeframe = self.extract_timeframe(message)
-            return 'history_query', {'timeframe': timeframe}
+        # Timeframe keywords (yesterday, last week, this week)
+        if any(word in message for word in ['yesterday', 'last week', 'last month', 'this week']):
+            # But NOT if it's a nutrient query with explicit "intake" keyword
+            if 'intake' not in message:
+                timeframe = self.extract_timeframe(message)
+                return 'history_query', {'timeframe': timeframe}
         
-        # Today's summary
-        if any(word in message for word in ['today', 'so far']):
-            if any(word in message for word in ['total', 'doing', 'summary', 'how am i', 'how\'s my']):
+        # ===== DAILY SUMMARY (specific to today) =====
+        if 'today' in message:
+            # Priority: if has "how am i" but also "today", it's daily_summary
+            if any(phrase in message for phrase in ['how am i doing today', "how's today", 'show me today', 'today so far']):
+                return 'daily_summary', {'date': 'today'}
+            # Other today + summary keywords
+            if any(word in message for word in ['total', 'summary']):
                 return 'daily_summary', {'date': 'today'}
         
-        # Specific nutrient query
-        if any(word in message for word in ['protein', 'calories', 'calorie', 'carbs', 'carb', 'fat']):
-            nutrient = self.extract_nutrient(message)
-            timeframe = self.extract_timeframe(message)
-            return 'nutrient_query', {'nutrient': nutrient, 'timeframe': timeframe}
+        # Generic "how am i doing" without "today" -> goal_progress
+        if 'how am i doing' in message and 'today' not in message:
+            return 'goal_progress', {}
         
-        # Pattern analysis
+        # ===== NUTRIENT QUERY (check AFTER goal setting to avoid conflicts) =====
+        # Support "cal" as shorthand for "calories"
+        nutrient_keywords = ['protein', 'calories', 'calorie', 'cal', 'carbs', 'carb', 'fat']
+        if any(word in message for word in nutrient_keywords):
+            # Skip if already detected as goal_setting
+            if not re.search(r'\d+', message) or 'intake' in message or 'how much' in message or 'how many' in message:
+                nutrient = self.extract_nutrient(message)
+                timeframe = self.extract_timeframe(message)
+                return 'nutrient_query', {'nutrient': nutrient, 'timeframe': timeframe}
+        
+        # ===== PATTERN ANALYSIS =====
         if any(word in message for word in ['pattern', 'usually', 'tend to', 'eating habits']):
             return 'pattern_analysis', {}
         
-        # Recommendations
+        # ===== RECOMMENDATIONS =====
         if any(word in message for word in ['what should', 'recommend', 'suggest', 'should i eat']):
             return 'recommendation', {}
         
-        # Help/General
+        # ===== HELP =====
         if any(word in message for word in ['help', 'what can', 'how do', 'commands']):
             return 'help', {}
         
-        # Default
+        # ===== DEFAULT =====
         return 'general', {}
     
     def extract_nutrient(self, message):
         """Extract which nutrient user is asking about"""
         if 'protein' in message:
             return 'protein'
-        elif 'calorie' in message:
+        elif 'calorie' in message or 'cal' in message:
             return 'calories'
         elif 'carb' in message:
             return 'carbs'
