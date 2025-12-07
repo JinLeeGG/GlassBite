@@ -26,9 +26,13 @@ class ChatbotService:
         """
         message = message_text.lower()
         
-        # Goal setting
-        if any(word in message for word in ['my goal is', 'set goal', 'target', 'goal:']):
+        # Goal setting (check FIRST - more specific patterns with numbers)
+        if re.search(r'(my goal is|goal is|set.+goal).+\d+', message):
             return 'goal_setting', {}
+        
+        # Goal progress (questions about goals - check before general nutrient queries)
+        if any(word in message for word in ['what is my goal', "what's my goal", 'my progress', 'goal progress', 'am i meeting', 'meeting my goal', 'what is my progress', "what's my progress", 'how am i doing']):
+            return 'goal_progress', {}
         
         # Meal history queries (check first before daily summary)
         if any(word in message for word in ['what did i eat', 'what did i have', 'what did i had', 'show me what', 'what have i eaten']):
@@ -49,10 +53,6 @@ class ChatbotService:
             nutrient = self.extract_nutrient(message)
             timeframe = self.extract_timeframe(message)
             return 'nutrient_query', {'nutrient': nutrient, 'timeframe': timeframe}
-        
-        # Goal progress
-        if any(word in message for word in ['goal', 'progress', 'meeting', 'hit']):
-            return 'goal_progress', {}
         
         # Comparison queries
         if any(word in message for word in ['compare', 'vs', 'versus', 'difference']):
@@ -136,8 +136,20 @@ class ChatbotService:
     
     def is_followup_question(self, message):
         """Detect follow-up questions"""
-        followup_words = ['what about', 'how about', 'and', 'also', 'what if', 'or']
-        return any(word in message.lower() for word in followup_words) and len(message.split()) < 6
+        followup_phrases = ['what about', 'how about', 'what if']
+        message_lower = message.lower()
+        
+        # Check for followup phrases
+        if any(phrase in message_lower for phrase in followup_phrases):
+            return True
+        
+        # Check for standalone followup words (with word boundaries)
+        words = message_lower.split()
+        standalone_words = ['and', 'also', 'or']
+        if any(word in standalone_words for word in words) and len(words) < 6:
+            return True
+        
+        return False
     
     def handle_followup(self, user_id, message, context):
         """Handle context-aware follow-ups"""
@@ -324,10 +336,20 @@ Meals logged: {summary.meal_count}"""
     def handle_goal_progress(self, user_id):
         """Show goal progress"""
         
+        # Get calorie goal first (most common query)
         goal = Goal.query.filter_by(
             user_id=user_id,
+            goal_type='calorie_target',
             is_active=True
         ).first()
+        
+        # If no calorie goal, check for protein goal
+        if not goal:
+            goal = Goal.query.filter_by(
+                user_id=user_id,
+                goal_type='protein_target',
+                is_active=True
+            ).first()
         
         if not goal:
             return "You haven't set a goal yet. Send me 'My goal is 2000 calories' to get started!"
@@ -338,12 +360,13 @@ Meals logged: {summary.meal_count}"""
         ).first()
         
         if not summary:
-            return f"No meals logged today. Your goal is {goal.target_value:.0f} {goal.goal_type.replace('_target', '')}."
+            goal_type_clean = goal.goal_type.replace('_target', '').replace('calorie', 'calories')
+            return f"No meals logged today. Your goal is {goal.target_value:.0f} {goal_type_clean}."
         
-        if goal.goal_type == 'calorie_target':
+        if goal.goal_type in ['calorie_target', 'calories']:
             current = summary.total_calories
             unit = 'calories'
-        elif goal.goal_type == 'protein_target':
+        elif goal.goal_type in ['protein_target', 'protein']:
             current = summary.total_protein
             unit = 'g protein'
         else:
