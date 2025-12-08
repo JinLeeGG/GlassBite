@@ -121,7 +121,7 @@ class MealProcessor:
             db.session.commit()
             
             # 7. Ask user for meal type (voice-friendly, concise)
-            food_list = "\n".join([f"{name}" for name in food_names[:5]])
+            food_list = "\n".join([f"{name}" for name in food_names])
             message = f"Got it! I detected:\n{food_list}\n"
             message += f"\nTotal: {total_calories:.0f} calories, {total_protein:.0f}g protein\n\n"
             message += "Is this breakfast, lunch, dinner, or snack?"
@@ -355,13 +355,10 @@ class MealProcessor:
         message = f"Meal logged as {meal_name}.\n"
         message += "Wrong? Reply: 'change to breakfast', 'lunch', 'dinner', or 'snack'\n\n"
         
-        # Food list
+        # Food list - show all foods
         message += "You had:\n"
-        for food in food_names[:5]:  # Limit to 5 foods
+        for food in food_names:
             message += f"{food}\n"
-        
-        if len(food_names) > 5:
-            message += f"and {len(food_names) - 5} more items\n"
         
         # This meal
         message += f"\nThis meal: {total_calories:.0f} calories, {total_protein:.0f} grams protein\n"
