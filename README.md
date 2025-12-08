@@ -3,9 +3,10 @@
 <div align="center">
 
 ![GlassBite](https://img.shields.io/badge/Status-Production%20Ready-success)
-![Python](https://img.shields.io/badge/Python-3.12+-blue)
+![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![WhatsApp](https://img.shields.io/badge/WhatsApp-Enabled-25D366)
 ![AI](https://img.shields.io/badge/AI-Gemini-orange)
+![Nutrients](https://img.shields.io/badge/Nutrients-25%20Tracked-brightgreen)
 
 **Snap a photo with your smart glasses. AI tracks everything. Zero manual entry.**
 
@@ -62,15 +63,16 @@ No typing. No menus. No apps to open. Just take a photo and listen.
 
 **Backend**
 
-- Python 3.12 + Flask
+- Python 3.10 + Flask
 - SQLAlchemy ORM
-- PostgreSQL database
+- PostgreSQL database (5 tables, 25-nutrient schema)
 
 **AI & Data**
 
 - Google Gemini API (`gemini-pro-latest`)
-- USDA FoodData Central API
+- USDA FoodData Central API (300K+ foods)
 - Custom smart food matching algorithm
+- 25-nutrient tracking system (3 tiers)
 
 **Integrations**
 
@@ -96,8 +98,32 @@ Google Gemini analyzes meal photos and:
 - Estimates portion sizes in grams
 - Returns confidence scores
 - Handles complex multi-food meals
+- Detects non-food images (prevents accidental logging)
 
-### 2. **Smart USDA Matching**
+### 2. **25-Nutrient Comprehensive Tracking**
+
+Three-tier nutrition system captures everything:
+
+**Tier 1: Essential Macronutrients (10 nutrients)**
+
+- Calories, Protein, Carbs, Fat
+- Fiber, Sugar, Sodium, Potassium
+- Calcium, Iron
+
+**Tier 2: Important Micronutrients (8 nutrients)**
+
+- Vitamins: C, D, A, B12
+- Minerals: Magnesium, Zinc, Phosphorus, Cholesterol
+
+**Tier 3: Supplementary Nutrients (7 nutrients)**
+
+- Fat types: Saturated, Monounsaturated, Polyunsaturated
+- B-Vitamins: Folate, B6
+- Other: Choline, Selenium
+
+All 25 nutrients extracted from USDA FoodData Central and stored in dedicated `food_nutrients` table with 1:1 relationship to food items.
+
+### 3. **Smart USDA Matching**
 
 Custom scoring algorithm filters 300K+ foods with 99%+ accuracy:
 
@@ -108,7 +134,7 @@ Custom scoring algorithm filters 300K+ foods with 99%+ accuracy:
 
 Test results: 100/100 common foods matched correctly
 
-### 3. **Voice-Optimized Responses**
+### 4. **Voice-Optimized Responses**
 
 Every response designed for Ray-Ban Meta glasses audio:
 
@@ -118,7 +144,7 @@ Every response designed for Ray-Ban Meta glasses audio:
 - Full words instead of abbreviations (grams not g)
 - Clean, simple sentence structure
 
-### 4. **Natural Language Queries**
+### 5. **Natural Language Queries**
 
 Ask questions in plain English:
 
@@ -128,7 +154,7 @@ Ask questions in plain English:
 - "What should I eat for dinner?"
 - "Show me my eating patterns"
 
-### 5. **Two-Step Meal Workflow**
+### 6. **Two-Step Meal Workflow**
 
 Accurate logging with user confirmation:
 
@@ -137,7 +163,7 @@ Accurate logging with user confirmation:
 3. System logs with proper timestamp
 4. Voice-friendly confirmation sent
 
-### 6. **Goal Tracking**
+### 7. **Goal Tracking**
 
 Set and monitor nutritional targets:
 
@@ -152,7 +178,7 @@ Set and monitor nutritional targets:
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.10+
 - PostgreSQL database
 - Google Gemini API key ([Get one free](https://ai.google.dev/))
 - USDA FoodData Central API key ([Get one free](https://fdc.nal.usda.gov/api-key-signup.html))
@@ -203,7 +229,10 @@ FLASK_SECRET_KEY=your_secret_key
 # Create database
 createdb glassbite_db
 
-# Initialize tables
+# Apply schema (recommended - includes all 25 nutrient columns)
+psql -d glassbite_db -f schema.sql
+
+# OR initialize with Python (alternative method)
 python database_utils.py
 ```
 
@@ -218,7 +247,7 @@ ngrok http 5000
 
 # Update Twilio webhook URL:
 # Twilio Console → WhatsApp Sandbox → Webhook URL
-# Set to: https://your-ngrok-url.ngrok.io/webhook
+# Set to: https://your-ngrok-url.ngrok.io/webhook/whatsapp
 ```
 
 ---
@@ -256,7 +285,13 @@ Bot: "Got it! I detected:
 You: "dinner"
 
 Bot: "Meal logged as Dinner.
-     520 calories, 45 grams protein, 50 grams carbs, 15 grams fat."
+     Grilled salmon (150 grams): 270 calories, 39 grams protein, 0 grams carbs, 12 grams fat
+     Steamed broccoli (100 grams): 35 calories, 2 grams protein, 7 grams carbs, 0 grams fat
+     Brown rice (200 grams): 215 calories, 4 grams protein, 43 grams carbs, 3 grams fat
+
+     Total: 520 calories, 45 grams protein, 50 grams carbs, 15 grams fat
+
+     Today: 1520 calories, 85 grams protein (76 percent of 2000 calorie goal)"
 ```
 
 ### Natural Language Queries
@@ -291,12 +326,46 @@ Bot: "Goal set. Targeting 2000 calories per day."
 
 ---
 
+## 🔌 API Endpoints
+
+### `GET /`
+
+Health check endpoint
+
+```json
+{
+  "status": "running",
+  "app": "GlassBite AI Chatbot",
+  "version": "1.0.0"
+}
+```
+
+### `POST /webhook/whatsapp`
+
+Main webhook for Twilio WhatsApp integration
+
+**Handles:**
+
+- Photos with voice notes → Meal logging workflow
+- Text messages → Chatbot queries or meal type confirmation
+
+**Request (from Twilio):**
+
+- `From`: User's WhatsApp number (e.g., `whatsapp:+12233392848`)
+- `Body`: Message text
+- `NumMedia`: Number of media attachments
+- `MediaUrl0`: URL of first media attachment
+
+**Response:** Empty 200 OK (Twilio requirement)
+
+---
+
 ## 🧪 Testing
 
 ### USDA Food Matching Test
 
 ```bash
-python test_usda.py
+python tests/test_usda.py
 ```
 
 Runs 100 common foods through the smart matching algorithm:
@@ -345,17 +414,22 @@ All 100 foods matched correctly with smart filtering.
 GlassBite/
 ├── app.py                      # Flask webhook server
 ├── config.py                   # Configuration management
-├── models.py                   # SQLAlchemy database models
+├── models.py                   # SQLAlchemy database models (5 tables)
 ├── database_utils.py           # Database initialization
+├── schema.sql                  # PostgreSQL schema with 25-nutrient structure
 ├── services/
 │   ├── gemini_service.py      # Google Gemini AI integration
 │   ├── usda_service.py        # USDA nutrition data + smart matching
-│   ├── meal_processor.py      # Meal logging workflow
+│   ├── meal_processor.py      # Meal logging workflow + 25-nutrient extraction
 │   ├── chatbot_service.py     # Natural language query handler
 │   └── twilio_service.py      # WhatsApp messaging
-├── test_usda.py               # USDA matching test suite (100 foods)
-├── requirements.txt           # Python dependencies
-└── .env.example              # Environment variables template
+├── tests/
+│   ├── test_usda.py           # USDA matching test suite (100 foods)
+│   ├── test_usda_raw_data.py  # Raw USDA API response testing
+│   └── reset_and_seed.py      # Database reset and seeding
+├── requirements.txt            # Python dependencies
+├── .env.example               # Environment variables template
+└── SETUP_GUIDE.md             # Detailed setup instructions
 ```
 
 ### Key Components
@@ -376,6 +450,8 @@ GlassBite/
 
 - Orchestrates meal logging workflow
 - Two-step confirmation (analysis → meal type)
+- **Extracts all 25 nutrients from USDA API**
+- Saves to FoodItem + FoodNutrient tables (1:1 relationship)
 - Voice-optimized response formatting
 
 **`services/chatbot_service.py`**
@@ -420,6 +496,27 @@ Smart scoring algorithm improves to 99%+ accuracy:
 - Prioritizes cooking methods (raw, cooked, grilled)
 - Favors simple descriptions (plain, NFS, whole)
 
+### Why 25 Nutrients Instead of 4?
+
+Comprehensive health tracking requires more than just macros:
+
+- **Micronutrient deficiencies** are common (Vitamin D, Iron, B12)
+- **Fat quality matters** (saturated vs. unsaturated)
+- **B-vitamins** affect energy and metabolism
+- **Minerals** support bone health, immunity, and more
+
+The system extracts all 25 nutrients from USDA without performance impact, stored in a dedicated `food_nutrients` table with 1:1 relationship to `food_items`.
+
+### Why Separate FoodItem and FoodNutrient Tables?
+
+Separation of concerns and flexibility:
+
+- **FoodItem**: Basic food info (name, portion, confidence)
+- **FoodNutrient**: All 25 nutrient values (calories, protein, vitamins, minerals, etc.)
+- **1:1 Relationship**: Each food item has exactly one nutrient record
+- **Null Safety**: Code checks `if item.nutrients` before accessing values
+- **Future-Proof**: Easy to add more nutrients without touching FoodItem table
+
 ### Why Timezone-Aware?
 
 Using `datetime.now()` instead of `date.today()`:
@@ -441,13 +538,19 @@ Using `datetime.now()` instead of `date.today()`:
 **meals**
 
 - id, user_id, meal_type, timestamp
-- total_calories, total_protein, total_carbs, total_fat
+- image_url, voice_note_text, processing_status
 
 **food_items**
 
-- id, meal_id, food_name
-- calories, protein_g, carbs_g, fat_g
-- portion_grams, confidence_score
+- id, meal_id, name
+- portion_size_grams, confidence_score
+
+**food_nutrients** (25 nutrients per food item)
+
+- id, food_item_id (1:1 relationship)
+- **Tier 1 (10)**: calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg, potassium_mg, calcium_mg, iron_mg
+- **Tier 2 (8)**: vitamin_c_mg, vitamin_d_ug, vitamin_a_ug, vitamin_b12_ug, magnesium_mg, zinc_mg, phosphorus_mg, cholesterol_mg
+- **Tier 3 (7)**: saturated_fat_g, monounsaturated_fat_g, polyunsaturated_fat_g, folate_ug, vitamin_b6_mg, choline_mg, selenium_ug
 
 **daily_summaries**
 
@@ -524,14 +627,17 @@ Using `datetime.now()` instead of `date.today()`:
 
 ## 🚀 Future Enhancements
 
-- [ ] Web dashboard with visualizations
+- [ ] Web dashboard with 25-nutrient visualizations
+- [ ] Micronutrient deficiency alerts (Vitamin D, Iron, B12, etc.)
+- [ ] Comprehensive nutrient reports (all 25 nutrients tracked)
 - [ ] Weekly/monthly nutrition reports
-- [ ] Recipe suggestions based on goals
+- [ ] Recipe suggestions based on nutrient gaps
 - [ ] Barcode scanning for packaged foods
 - [ ] Restaurant menu integration
 - [ ] Meal prep planning
 - [ ] Multi-language support
 - [ ] Fitness tracker integration (Apple Health, Fitbit)
+- [ ] Export nutrition data (CSV, PDF)
 
 ---
 
