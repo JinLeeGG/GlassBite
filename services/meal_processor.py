@@ -245,9 +245,11 @@ class MealProcessor:
         
         # Format confirmation message
         message = self.format_meal_confirmation(
-            food_names,
+            food_items,
             total_calories,
             total_protein,
+            total_carbs,
+            total_fat,
             daily_totals,
             active_goal,
             low_confidence_foods,
@@ -346,8 +348,9 @@ class MealProcessor:
         
         return goal
     
-    def format_meal_confirmation(self, food_names, total_calories, total_protein,
-                                 daily_totals, goal, low_confidence_foods, meal_type):
+    def format_meal_confirmation(self, food_items, total_calories, total_protein,
+                                 total_carbs, total_fat, daily_totals, goal, 
+                                 low_confidence_foods, meal_type):
         """Create well-formatted confirmation message (voice-friendly)"""
         
         meal_name = meal_type.title()
@@ -355,16 +358,19 @@ class MealProcessor:
         message = f"Meal logged as {meal_name}.\n"
         message += "Wrong? Reply: 'change to breakfast', 'lunch', 'dinner', or 'snack'\n\n"
         
-        # Food list - show all foods
+        # Food list with individual nutrients
         message += "You had:\n"
-        for food in food_names:
-            message += f"{food}\n"
+        for item in food_items:
+            message += f"{item.name} ({item.portion_size_grams:.0f}g)\n"
+            message += f"  {item.calories:.0f} cal | {item.protein_g:.0f}g protein | {item.carbs_g:.0f}g carbs | {item.fat_g:.0f}g fat\n"
         
-        # This meal
-        message += f"\nThis meal: {total_calories:.0f} calories, {total_protein:.0f} grams protein\n"
+        # This meal totals
+        message += f"\n--- This Meal Total ---\n"
+        message += f"{total_calories:.0f} cal | {total_protein:.0f}g protein | {total_carbs:.0f}g carbs | {total_fat:.0f}g fat\n"
         
-        # Daily progress
-        message += f"\nToday's total: {daily_totals['calories']:.0f} calories, {daily_totals['protein']:.0f} grams protein\n"
+        # Daily totals
+        message += f"\n--- Today's Total ---\n"
+        message += f"{daily_totals['calories']:.0f} cal | {daily_totals['protein']:.0f}g protein | {daily_totals['carbs']:.0f}g carbs | {daily_totals['fat']:.0f}g fat\n"
         
         # Goal progress
         if goal:

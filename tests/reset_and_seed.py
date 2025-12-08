@@ -2,12 +2,16 @@
 Reset database and seed with test data
 """
 
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from datetime import datetime, timedelta
-from database_utils import db
-from models import User, Meal, FoodItem, DailySummary, Goal
+from models import db, User, Meal, FoodItem, DailySummary, Goal
 from config import Config
 import random
-import os
 
 def clear_user_data(user_id):
     """Clear meal data for a specific user only (keeps user record)"""
