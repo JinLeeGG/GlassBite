@@ -2,6 +2,12 @@
 test_usda.py - USDA API test with detailed matching info
 """
 
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from services.usda_service import USDAService
 
 def test_usda_foods_detailed():

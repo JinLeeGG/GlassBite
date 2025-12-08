@@ -198,7 +198,11 @@ class USDAService:
             return None
     
     def _extract_nutrients(self, food_data, portion_grams):
-        """Extract nutrients from USDA food data and scale to portion"""
+        """Extract nutrients from USDA food data and scale to portion
+        
+        IMPORTANT: USDA FoodData Central nutrient values are ALWAYS per 100g,
+        regardless of what servingSize says. We must always use 100g as the base.
+        """
         
         nutrients = {
             'calories': 0,
@@ -209,11 +213,6 @@ class USDAService:
             'sugar_g': 0,
             'sodium_mg': 0
         }
-        
-        # USDA provides nutrients per 100g
-        serving_size = food_data.get('servingSize', 100)
-        if serving_size == 0:
-            serving_size = 100
         
         # Map USDA nutrient names to our keys
         nutrient_mapping = {
@@ -226,20 +225,25 @@ class USDAService:
             'Sodium, Na': 'sodium_mg'
         }
         
-        # Extract nutrients
+        # Extract nutrients (these are per 100g from USDA)
         if 'foodNutrients' in food_data:
             for nutrient in food_data['foodNutrients']:
                 nutrient_name = nutrient.get('nutrientName', '')
                 value = nutrient.get('value', 0)
+                unit = nutrient.get('unitName', '')
                 
                 # Find matching nutrient
                 for usda_name, our_key in nutrient_mapping.items():
                     if usda_name in nutrient_name:
+                        # Special case: Energy must be in KCAL, not kJ
+                        if our_key == 'calories' and unit != 'KCAL':
+                            continue
                         nutrients[our_key] = value
                         break
         
-        # Scale to actual portion size
-        scale_factor = portion_grams / serving_size
+        # Scale from 100g base to actual portion size
+        # USDA values are per 100g, so scale_factor = portion_grams / 100
+        scale_factor = portion_grams / 100.0
         scaled_nutrients = {k: v * scale_factor for k, v in nutrients.items()}
         
         return scaled_nutrients
