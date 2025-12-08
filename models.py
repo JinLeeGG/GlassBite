@@ -1,6 +1,6 @@
 """
 Database models for GlassBite AI Chatbot
-Defines 5 tables: Users, Meals, FoodItems, DailySummaries, Goals
+Final optimized 5-table design
 """
 
 from flask_sqlalchemy import SQLAlchemy
@@ -9,18 +9,13 @@ from datetime import datetime
 db = SQLAlchemy()
 
 class User(db.Model):
-    """User profiles and preferences"""
+    """User profiles"""
     __tablename__ = 'users'
     
     id = db.Column(db.Integer, primary_key=True)
     phone_number = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    name = db.Column(db.String(100))
-    height_cm = db.Column(db.Float)
-    weight_kg = db.Column(db.Float)
-    age = db.Column(db.Integer)
-    dietary_restrictions = db.Column(db.Text)
-    allergies = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    dietary_restrictions = db.Column(db.Text)
     
     # Relationships
     meals = db.relationship('Meal', back_populates='user', cascade='all, delete-orphan')
@@ -32,7 +27,7 @@ class User(db.Model):
 
 
 class Meal(db.Model):
-    """Log of meals with photos and voice notes"""
+    """Meal log with photos and voice notes"""
     __tablename__ = 'meals'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -41,7 +36,7 @@ class Meal(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     image_url = db.Column(db.String(500))
     voice_note_text = db.Column(db.Text)
-    processing_status = db.Column(db.String(20), default='pending')  # pending/completed/failed
+    processing_status = db.Column(db.String(20), default='pending')  # pending/analyzed/completed/failed
     
     # Relationships
     user = db.relationship('User', back_populates='meals')
@@ -52,13 +47,31 @@ class Meal(db.Model):
 
 
 class FoodItem(db.Model):
-    """Individual foods detected in each meal"""
+    """Individual foods with flexible nutrition storage"""
     __tablename__ = 'food_items'
     
     id = db.Column(db.Integer, primary_key=True)
     meal_id = db.Column(db.Integer, db.ForeignKey('meals.id', ondelete='CASCADE'), nullable=False, index=True)
     name = db.Column(db.String(200), nullable=False)
     portion_size_grams = db.Column(db.Float)
+    confidence_score = db.Column(db.Float)
+    
+    # Relationships
+    meal = db.relationship('Meal', back_populates='food_items')
+    nutrients = db.relationship('FoodNutrient', back_populates='food_item', uselist=False, cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<FoodItem {self.name} - {self.portion_size_grams}g>'
+
+
+class FoodNutrient(db.Model):
+    """Detailed nutrition data for food items (25 nutrients)"""
+    __tablename__ = 'food_nutrients'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    food_item_id = db.Column(db.Integer, db.ForeignKey('food_items.id', ondelete='CASCADE'), nullable=False, unique=True, index=True)
+    
+    # Tier 1: Essential Macronutrients (10 nutrients)
     calories = db.Column(db.Float)
     protein_g = db.Column(db.Float)
     carbs_g = db.Column(db.Float)
@@ -66,17 +79,38 @@ class FoodItem(db.Model):
     fiber_g = db.Column(db.Float)
     sugar_g = db.Column(db.Float)
     sodium_mg = db.Column(db.Float)
-    confidence_score = db.Column(db.Float)
+    potassium_mg = db.Column(db.Float)
+    calcium_mg = db.Column(db.Float)
+    iron_mg = db.Column(db.Float)
+    
+    # Tier 2: Important Micronutrients (8 nutrients)
+    vitamin_c_mg = db.Column(db.Float)
+    vitamin_d_ug = db.Column(db.Float)
+    vitamin_a_ug = db.Column(db.Float)
+    vitamin_b12_ug = db.Column(db.Float)
+    magnesium_mg = db.Column(db.Float)
+    zinc_mg = db.Column(db.Float)
+    phosphorus_mg = db.Column(db.Float)
+    cholesterol_mg = db.Column(db.Float)
+    
+    # Tier 3: Supplementary Nutrients (7 nutrients)
+    saturated_fat_g = db.Column(db.Float)
+    monounsaturated_fat_g = db.Column(db.Float)
+    polyunsaturated_fat_g = db.Column(db.Float)
+    folate_ug = db.Column(db.Float)
+    vitamin_b6_mg = db.Column(db.Float)
+    choline_mg = db.Column(db.Float)
+    selenium_ug = db.Column(db.Float)
     
     # Relationships
-    meal = db.relationship('Meal', back_populates='food_items')
+    food_item = db.relationship('FoodItem', back_populates='nutrients')
     
     def __repr__(self):
-        return f'<FoodItem {self.name} - {self.portion_size_grams}g>'
+        return f'<FoodNutrient for FoodItem {self.food_item_id}>'
 
 
 class DailySummary(db.Model):
-    """Cache daily nutrition totals for fast queries"""
+    """Daily nutrition totals"""
     __tablename__ = 'daily_summaries'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -102,16 +136,15 @@ class DailySummary(db.Model):
 
 
 class Goal(db.Model):
-    """Track user nutrition and weight goals"""
+    """User nutrition goals"""
     __tablename__ = 'goals'
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    goal_type = db.Column(db.String(50))  # calorie_target, protein_target, weight_loss
+    goal_type = db.Column(db.String(50))  # calorie_target, protein_target
     target_value = db.Column(db.Float, nullable=False)
-    start_date = db.Column(db.Date)
-    end_date = db.Column(db.Date)
     is_active = db.Column(db.Boolean, default=True, index=True)
+    goal_details = db.Column(db.JSON)  # Optional future use
     
     # Relationships
     user = db.relationship('User', back_populates='goals')

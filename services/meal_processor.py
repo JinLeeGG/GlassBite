@@ -5,7 +5,7 @@ Handles the complete pipeline: Image → Gemini → USDA → Database
 
 import logging
 from datetime import datetime, date
-from models import db, User, Meal, FoodItem, DailySummary
+from models import db, User, Meal, FoodItem, FoodNutrient, DailySummary
 from services.gemini_service import analyze_food_image, detect_non_food_image
 from services.usda_service import get_nutrition_data
 from services.twilio_service import send_whatsapp_message, get_twilio_auth
@@ -82,21 +82,51 @@ class MealProcessor:
                 )
                 
                 if nutrition:
-                    # Save to database
+                    # Save FoodItem to database
                     food_item = FoodItem(
                         meal_id=meal.id,
                         name=food_data['name'],
                         portion_size_grams=food_data['portion_grams'],
-                        confidence_score=food_data['confidence'],
-                        calories=nutrition['calories'],
-                        protein_g=nutrition['protein_g'],
-                        carbs_g=nutrition['carbs_g'],
-                        fat_g=nutrition['fat_g'],
-                        fiber_g=nutrition.get('fiber_g', 0),
-                        sugar_g=nutrition.get('sugar_g', 0),
-                        sodium_mg=nutrition.get('sodium_mg', 0)
+                        confidence_score=food_data['confidence']
                     )
                     db.session.add(food_item)
+                    db.session.flush()  # Get food_item.id
+                    
+                    # Save detailed nutrients to FoodNutrient table
+                    extra_nutrients = nutrition.get('extra_nutrients', {})
+                    
+                    food_nutrient = FoodNutrient(
+                        food_item_id=food_item.id,
+                        # Tier 1: Essential Macronutrients
+                        calories=nutrition.get('calories'),
+                        protein_g=nutrition.get('protein_g'),
+                        carbs_g=nutrition.get('carbs_g'),
+                        fat_g=nutrition.get('fat_g'),
+                        fiber_g=nutrition.get('fiber_g'),
+                        sugar_g=nutrition.get('sugar_g'),
+                        sodium_mg=nutrition.get('sodium_mg'),
+                        potassium_mg=extra_nutrients.get('potassium_mg'),
+                        calcium_mg=extra_nutrients.get('calcium_mg'),
+                        iron_mg=extra_nutrients.get('iron_mg'),
+                        # Tier 2: Important Micronutrients
+                        vitamin_c_mg=extra_nutrients.get('vitamin_c_mg'),
+                        vitamin_d_ug=extra_nutrients.get('vitamin_d_ug'),
+                        vitamin_a_ug=extra_nutrients.get('vitamin_a_ug'),
+                        vitamin_b12_ug=extra_nutrients.get('vitamin_b12_ug'),
+                        magnesium_mg=extra_nutrients.get('magnesium_mg'),
+                        zinc_mg=extra_nutrients.get('zinc_mg'),
+                        phosphorus_mg=extra_nutrients.get('phosphorus_mg'),
+                        cholesterol_mg=extra_nutrients.get('cholesterol_mg'),
+                        # Tier 3: Supplementary Nutrients
+                        saturated_fat_g=extra_nutrients.get('saturated_fat_g'),
+                        monounsaturated_fat_g=extra_nutrients.get('monounsaturated_fat_g'),
+                        polyunsaturated_fat_g=extra_nutrients.get('polyunsaturated_fat_g'),
+                        folate_ug=extra_nutrients.get('folate_ug'),
+                        vitamin_b6_mg=extra_nutrients.get('vitamin_b6_mg'),
+                        choline_mg=extra_nutrients.get('choline_mg'),
+                        selenium_ug=extra_nutrients.get('selenium_ug')
+                    )
+                    db.session.add(food_nutrient)
                     
                     # Accumulate totals
                     total_calories += nutrition['calories']
@@ -212,14 +242,24 @@ class MealProcessor:
         # Get food items for this meal
         food_items = FoodItem.query.filter_by(meal_id=meal.id).all()
         
-        # Calculate totals
-        total_calories = sum(item.calories for item in food_items)
-        total_protein = sum(item.protein_g for item in food_items)
-        total_carbs = sum(item.carbs_g for item in food_items)
-        total_fat = sum(item.fat_g for item in food_items)
-        total_fiber = sum(item.fiber_g for item in food_items)
-        total_sugar = sum(item.sugar_g for item in food_items)
-        total_sodium = sum(item.sodium_mg for item in food_items)
+        # Calculate totals from FoodNutrient table
+        total_calories = 0
+        total_protein = 0
+        total_carbs = 0
+        total_fat = 0
+        total_fiber = 0
+        total_sugar = 0
+        total_sodium = 0
+        
+        for item in food_items:
+            if item.nutrients:
+                total_calories += item.nutrients.calories or 0
+                total_protein += item.nutrients.protein_g or 0
+                total_carbs += item.nutrients.carbs_g or 0
+                total_fat += item.nutrients.fat_g or 0
+                total_fiber += item.nutrients.fiber_g or 0
+                total_sugar += item.nutrients.sugar_g or 0
+                total_sodium += item.nutrients.sodium_mg or 0
         
         food_names = [f"{item.name} ({item.portion_size_grams:.0f}g)" for item in food_items]
         low_confidence_foods = [item.name for item in food_items if item.confidence_score < 0.6]
@@ -362,7 +402,8 @@ class MealProcessor:
         message += "You had:\n"
         for item in food_items:
             message += f"{item.name} ({item.portion_size_grams:.0f}g)\n"
-            message += f"  {item.calories:.0f} cal | {item.protein_g:.0f}g protein | {item.carbs_g:.0f}g carbs | {item.fat_g:.0f}g fat\n"
+            if item.nutrients:
+                message += f"  {item.nutrients.calories:.0f} cal | {item.nutrients.protein_g:.0f}g protein | {item.nutrients.carbs_g:.0f}g carbs | {item.nutrients.fat_g:.0f}g fat\n"
         
         # This meal totals
         message += f"\n--- This Meal Total ---\n"

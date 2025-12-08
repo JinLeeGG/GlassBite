@@ -299,7 +299,6 @@ class ChatbotService:
             user_id=user_id,
             goal_type=goal_type,
             target_value=target,
-            start_date=date.today(),
             is_active=True
         )
         db.session.add(goal)
@@ -680,7 +679,7 @@ Don't skip meals"""
         for meal in meals[:5]:  # Limit to 5 meals
             meal_time = meal.timestamp.strftime('%I:%M %p')
             foods = FoodItem.query.filter_by(meal_id=meal.id).all()
-            total_cal = sum(f.calories for f in foods)
+            total_cal = sum(f.nutrients.calories if f.nutrients else 0 for f in foods)
             
             response += f"{meal.meal_type.title() if meal.meal_type else 'Meal'} at {meal_time}\n"
             response += f"{total_cal:.0f} calories\n"

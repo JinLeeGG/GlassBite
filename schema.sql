@@ -2,6 +2,7 @@
 -- PostgreSQL implementation of 5-table design
 
 -- Drop existing tables (for clean setup)
+DROP TABLE IF EXISTS food_nutrients CASCADE;
 DROP TABLE IF EXISTS food_items CASCADE;
 DROP TABLE IF EXISTS meals CASCADE;
 DROP TABLE IF EXISTS daily_summaries CASCADE;
@@ -11,13 +12,8 @@ DROP TABLE IF EXISTS users CASCADE;
 -- 1. Users Table
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    phone_number VARCHAR(20) UNIQUE NOT NULL,
-    name VARCHAR(100),
-    height_cm FLOAT,
-    weight_kg FLOAT,
-    age INTEGER,
+    phone_number VARCHAR(50) UNIQUE NOT NULL,
     dietary_restrictions TEXT,
-    allergies TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -38,6 +34,15 @@ CREATE TABLE food_items (
     meal_id INTEGER NOT NULL REFERENCES meals(id) ON DELETE CASCADE,
     name VARCHAR(200) NOT NULL,
     portion_size_grams FLOAT,
+    confidence_score FLOAT
+);
+
+-- 3b. Food Nutrients Table (Detailed nutrition data for each food item)
+CREATE TABLE food_nutrients (
+    id SERIAL PRIMARY KEY,
+    food_item_id INTEGER NOT NULL REFERENCES food_items(id) ON DELETE CASCADE UNIQUE,
+    
+    -- Tier 1: Essential Macronutrients (10 nutrients)
     calories FLOAT,
     protein_g FLOAT,
     carbs_g FLOAT,
@@ -45,7 +50,28 @@ CREATE TABLE food_items (
     fiber_g FLOAT,
     sugar_g FLOAT,
     sodium_mg FLOAT,
-    confidence_score FLOAT
+    potassium_mg FLOAT,
+    calcium_mg FLOAT,
+    iron_mg FLOAT,
+    
+    -- Tier 2: Important Micronutrients (8 nutrients)
+    vitamin_c_mg FLOAT,
+    vitamin_d_ug FLOAT,
+    vitamin_a_ug FLOAT,
+    vitamin_b12_ug FLOAT,
+    magnesium_mg FLOAT,
+    zinc_mg FLOAT,
+    phosphorus_mg FLOAT,
+    cholesterol_mg FLOAT,
+    
+    -- Tier 3: Supplementary Nutrients (7 nutrients)
+    saturated_fat_g FLOAT,
+    monounsaturated_fat_g FLOAT,
+    polyunsaturated_fat_g FLOAT,
+    folate_ug FLOAT,
+    vitamin_b6_mg FLOAT,
+    choline_mg FLOAT,
+    selenium_ug FLOAT
 );
 
 -- 4. Daily Summaries Table
@@ -70,8 +96,7 @@ CREATE TABLE goals (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     goal_type VARCHAR(50),
     target_value FLOAT NOT NULL,
-    start_date DATE,
-    end_date DATE,
+    goal_details JSONB,
     is_active BOOLEAN DEFAULT TRUE
 );
 
@@ -80,16 +105,17 @@ CREATE INDEX idx_users_phone ON users(phone_number);
 CREATE INDEX idx_meals_user_timestamp ON meals(user_id, timestamp);
 CREATE INDEX idx_meals_user_date ON meals(user_id, CAST(timestamp AS DATE));
 CREATE INDEX idx_food_items_meal ON food_items(meal_id);
+CREATE INDEX idx_food_nutrients_food_item ON food_nutrients(food_item_id);
 CREATE INDEX idx_daily_summaries_user_date ON daily_summaries(user_id, date);
 CREATE INDEX idx_goals_user_active ON goals(user_id, is_active);
 
 -- Insert Sample Data for Testing
-INSERT INTO users (phone_number, name, height_cm, weight_kg, age) 
-VALUES ('whatsapp:+1234567890', 'Test User', 175.0, 70.0, 25);
+INSERT INTO users (phone_number) 
+VALUES ('whatsapp:+1234567890');
 
 -- Insert sample goal
-INSERT INTO goals (user_id, goal_type, target_value, start_date, is_active)
-VALUES (1, 'calorie_target', 2000, CURRENT_DATE, TRUE);
+INSERT INTO goals (user_id, goal_type, target_value, is_active)
+VALUES (1, 'calorie_target', 2000, TRUE);
 
 -- Verify tables created
 SELECT table_name FROM information_schema.tables 

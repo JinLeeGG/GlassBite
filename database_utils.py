@@ -168,7 +168,6 @@ def export_user_data(user_id, format='json'):
         data['goals'].append({
             'goal_type': goal.goal_type,
             'target_value': goal.target_value,
-            'start_date': goal.start_date.isoformat() if goal.start_date else None,
             'is_active': goal.is_active
         })
     

@@ -17,14 +17,15 @@ class USDAService:
         self.base_url = "https://api.nal.usda.gov/fdc/v1"
         
         # Fallback nutrition data for common foods not in USDA or hard to find
+        # Returns per 100g values - will be scaled later
         self.fallback_foods = {
-            'coffee': {'calories': 2, 'protein_g': 0.3, 'carbs_g': 0, 'fat_g': 0, 'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 5},
-            'black coffee': {'calories': 2, 'protein_g': 0.3, 'carbs_g': 0, 'fat_g': 0, 'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 5},
-            'water': {'calories': 0, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0, 'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 0},
-            'tea': {'calories': 2, 'protein_g': 0, 'carbs_g': 0.7, 'fat_g': 0, 'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 7},
-            'green tea': {'calories': 2, 'protein_g': 0.5, 'carbs_g': 0, 'fat_g': 0, 'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 3},
-            'diet soda': {'calories': 0, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0, 'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 40},
-            'sparkling water': {'calories': 0, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0, 'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 0},
+            'coffee': {'calories': 2, 'protein_g': 0.3, 'carbs_g': 0, 'fat_g': 0},
+            'black coffee': {'calories': 2, 'protein_g': 0.3, 'carbs_g': 0, 'fat_g': 0},
+            'water': {'calories': 0, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0},
+            'tea': {'calories': 2, 'protein_g': 0, 'carbs_g': 0.7, 'fat_g': 0},
+            'green tea': {'calories': 2, 'protein_g': 0.5, 'carbs_g': 0, 'fat_g': 0},
+            'diet soda': {'calories': 0, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0},
+            'sparkling water': {'calories': 0, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0},
         }
     
     def get_nutrition_data(self, food_name, portion_grams):
@@ -214,37 +215,74 @@ class USDAService:
             'sodium_mg': 0
         }
         
-        # Map USDA nutrient names to our keys
-        nutrient_mapping = {
-            'Energy': 'calories',
-            'Protein': 'protein_g',
-            'Carbohydrate, by difference': 'carbs_g',
-            'Total lipid (fat)': 'fat_g',
-            'Fiber, total dietary': 'fiber_g',
-            'Sugars, total including NLEA': 'sugar_g',
-            'Sodium, Na': 'sodium_mg'
+        # Separate extra_nutrients from main nutrients
+        # Map USDA nutrient IDs to keys (based on test_usda_raw_data.py findings)
+        extra_nutrients = {}
+        
+        target_nutrient_ids = {
+            # Already in main nutrients: 1008 (calories), 1003 (protein), 1005 (carbs), 1004 (fat)
+            # Already in basic extra: 1079 (fiber), 2000 (sugar), 1093 (sodium)
+            
+            # Tier 1 additional (3 more)
+            '1092': 'potassium_mg',      # Potassium
+            '1087': 'calcium_mg',         # Calcium
+            '1089': 'iron_mg',            # Iron
+            
+            # Tier 2 (8 nutrients)
+            '1162': 'vitamin_c_mg',       # Vitamin C
+            '1114': 'vitamin_d_ug',       # Vitamin D
+            '1106': 'vitamin_a_ug',       # Vitamin A, RAE
+            '1178': 'vitamin_b12_ug',     # Vitamin B-12
+            '1090': 'magnesium_mg',       # Magnesium
+            '1095': 'zinc_mg',            # Zinc
+            '1091': 'phosphorus_mg',      # Phosphorus
+            '1253': 'cholesterol_mg',     # Cholesterol
+            
+            # Tier 3 (7 nutrients)
+            '1258': 'saturated_fat_g',    # Saturated fatty acids
+            '1292': 'monounsaturated_fat_g',  # Monounsaturated fatty acids
+            '1293': 'polyunsaturated_fat_g',  # Polyunsaturated fatty acids
+            '1177': 'folate_ug',          # Folate, total
+            '1175': 'vitamin_b6_mg',      # Vitamin B-6
+            '1180': 'choline_mg',         # Choline, total
+            '1103': 'selenium_ug'         # Selenium
         }
         
         # Extract nutrients (these are per 100g from USDA)
         if 'foodNutrients' in food_data:
             for nutrient in food_data['foodNutrients']:
+                nutrient_id = str(nutrient.get('nutrientId', ''))
                 nutrient_name = nutrient.get('nutrientName', '')
                 value = nutrient.get('value', 0)
                 unit = nutrient.get('unitName', '')
                 
-                # Find matching nutrient
-                for usda_name, our_key in nutrient_mapping.items():
-                    if usda_name in nutrient_name:
-                        # Special case: Energy must be in KCAL, not kJ
-                        if our_key == 'calories' and unit != 'KCAL':
-                            continue
-                        nutrients[our_key] = value
-                        break
+                # Check if it's one of our main nutrients
+                if nutrient_id == '1008' and unit == 'KCAL':  # Energy (calories)
+                    nutrients['calories'] = value
+                elif nutrient_id == '1003':  # Protein
+                    nutrients['protein_g'] = value
+                elif nutrient_id == '1005':  # Carbs
+                    nutrients['carbs_g'] = value
+                elif nutrient_id == '1004':  # Total Fat
+                    nutrients['fat_g'] = value
+                elif nutrient_id == '1079':  # Fiber
+                    nutrients['fiber_g'] = value
+                elif nutrient_id == '2000':  # Total Sugars
+                    nutrients['sugar_g'] = value
+                elif nutrient_id == '1093':  # Sodium
+                    nutrients['sodium_mg'] = value
+                # Check if it's one of our extra nutrients
+                elif nutrient_id in target_nutrient_ids:
+                    extra_nutrients[target_nutrient_ids[nutrient_id]] = value
         
         # Scale from 100g base to actual portion size
         # USDA values are per 100g, so scale_factor = portion_grams / 100
         scale_factor = portion_grams / 100.0
         scaled_nutrients = {k: v * scale_factor for k, v in nutrients.items()}
+        scaled_extra = {k: v * scale_factor for k, v in extra_nutrients.items()}
+        
+        # Add extra_nutrients to the result
+        scaled_nutrients['extra_nutrients'] = scaled_extra
         
         return scaled_nutrients
     
@@ -256,7 +294,10 @@ class USDAService:
             base_nutrition = self.fallback_foods[food_lower]
             # Fallback data is per 100g, scale it
             scale = portion_grams / 100
-            return {k: v * scale for k, v in base_nutrition.items()}
+            scaled = {k: v * scale for k, v in base_nutrition.items()}
+            # Add empty extra_nutrients for consistency
+            scaled['extra_nutrients'] = {}
+            return scaled
         
         return None
     
@@ -283,39 +324,41 @@ class USDAService:
         
         food_lower = food_name.lower()
         
-        # Basic estimates per 100g
+        # Basic estimates per 100g (main nutrients + extras)
         if any(word in food_lower for word in ['chicken', 'turkey', 'lean meat']):
-            base = {'calories': 165, 'protein_g': 31, 'carbs_g': 0, 'fat_g': 3.6, 
-                   'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 70}
+            base = {'calories': 165, 'protein_g': 31, 'carbs_g': 0, 'fat_g': 3.6}
+            extras = {'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 70}
         elif any(word in food_lower for word in ['beef', 'steak', 'pork']):
-            base = {'calories': 250, 'protein_g': 26, 'carbs_g': 0, 'fat_g': 15, 
-                   'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 60}
+            base = {'calories': 250, 'protein_g': 26, 'carbs_g': 0, 'fat_g': 15}
+            extras = {'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 60}
         elif any(word in food_lower for word in ['fish', 'salmon', 'tuna']):
-            base = {'calories': 206, 'protein_g': 22, 'carbs_g': 0, 'fat_g': 12, 
-                   'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 50}
+            base = {'calories': 206, 'protein_g': 22, 'carbs_g': 0, 'fat_g': 12}
+            extras = {'fiber_g': 0, 'sugar_g': 0, 'sodium_mg': 50}
         elif any(word in food_lower for word in ['rice', 'pasta', 'noodles']):
-            base = {'calories': 130, 'protein_g': 2.7, 'carbs_g': 28, 'fat_g': 0.3, 
-                   'fiber_g': 0.4, 'sugar_g': 0.1, 'sodium_mg': 1}
+            base = {'calories': 130, 'protein_g': 2.7, 'carbs_g': 28, 'fat_g': 0.3}
+            extras = {'fiber_g': 0.4, 'sugar_g': 0.1, 'sodium_mg': 1}
         elif any(word in food_lower for word in ['bread', 'toast']):
-            base = {'calories': 265, 'protein_g': 9, 'carbs_g': 49, 'fat_g': 3.2, 
-                   'fiber_g': 2.7, 'sugar_g': 5, 'sodium_mg': 491}
+            base = {'calories': 265, 'protein_g': 9, 'carbs_g': 49, 'fat_g': 3.2}
+            extras = {'fiber_g': 2.7, 'sugar_g': 5, 'sodium_mg': 491}
         elif any(word in food_lower for word in ['egg']):
-            base = {'calories': 155, 'protein_g': 13, 'carbs_g': 1.1, 'fat_g': 11, 
-                   'fiber_g': 0, 'sugar_g': 1.1, 'sodium_mg': 124}
+            base = {'calories': 155, 'protein_g': 13, 'carbs_g': 1.1, 'fat_g': 11}
+            extras = {'fiber_g': 0, 'sugar_g': 1.1, 'sodium_mg': 124}
         elif any(word in food_lower for word in ['vegetable', 'broccoli', 'carrot', 'lettuce', 'salad']):
-            base = {'calories': 35, 'protein_g': 2.8, 'carbs_g': 7, 'fat_g': 0.4, 
-                   'fiber_g': 2.6, 'sugar_g': 1.7, 'sodium_mg': 33}
+            base = {'calories': 35, 'protein_g': 2.8, 'carbs_g': 7, 'fat_g': 0.4}
+            extras = {'fiber_g': 2.6, 'sugar_g': 1.7, 'sodium_mg': 33}
         elif any(word in food_lower for word in ['fruit', 'apple', 'banana', 'orange']):
-            base = {'calories': 52, 'protein_g': 0.3, 'carbs_g': 14, 'fat_g': 0.2, 
-                   'fiber_g': 2.4, 'sugar_g': 10, 'sodium_mg': 1}
+            base = {'calories': 52, 'protein_g': 0.3, 'carbs_g': 14, 'fat_g': 0.2}
+            extras = {'fiber_g': 2.4, 'sugar_g': 10, 'sodium_mg': 1}
         else:
             # Generic food estimate
-            base = {'calories': 150, 'protein_g': 5, 'carbs_g': 20, 'fat_g': 5, 
-                   'fiber_g': 2, 'sugar_g': 3, 'sodium_mg': 100}
+            base = {'calories': 150, 'protein_g': 5, 'carbs_g': 20, 'fat_g': 5}
+            extras = {'fiber_g': 2, 'sugar_g': 3, 'sodium_mg': 100}
         
         # Scale to portion
         scale = portion_grams / 100
-        return {k: v * scale for k, v in base.items()}
+        scaled = {k: v * scale for k, v in base.items()}
+        scaled['extra_nutrients'] = {k: v * scale for k, v in extras.items()}
+        return scaled
 
 
 # Singleton instance

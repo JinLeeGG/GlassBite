@@ -9,7 +9,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from datetime import datetime, timedelta
-from models import db, User, Meal, FoodItem, DailySummary, Goal
+from models import db, User, Meal, FoodItem, FoodNutrient, DailySummary, Goal
 from config import Config
 import random
 
@@ -49,6 +49,7 @@ def seed_test_data():
         # Create test user if none exists
         user = User(
             phone_number="+1234567890",  # Default test number
+            dietary_restrictions="",
             created_at=datetime.now() - timedelta(days=14)
         )
         db.session.add(user)
@@ -180,13 +181,23 @@ def seed_test_data():
                     meal_id=meal.id,
                     name=food_name,
                     portion_size_grams=grams,
+                    confidence_score=0.95
+                )
+                db.session.add(food_item)
+                db.session.flush()  # Get food_item.id
+                
+                # Add nutrients in separate table
+                food_nutrient = FoodNutrient(
+                    food_item_id=food_item.id,
                     calories=cal,
                     protein_g=protein,
                     carbs_g=carbs,
                     fat_g=fat,
-                    confidence_score=0.95
+                    fiber_g=2.0,
+                    sugar_g=5.0,
+                    sodium_mg=100.0
                 )
-                db.session.add(food_item)
+                db.session.add(food_nutrient)
             
             # Update daily totals
             daily_totals['calories'] += meal_calories
@@ -213,14 +224,12 @@ def seed_test_data():
         user_id=user.id,
         goal_type='calories',
         target_value=2000,
-        start_date=datetime.now().date(),
         is_active=True
     )
     protein_goal = Goal(
         user_id=user.id,
         goal_type='protein',
         target_value=150,
-        start_date=datetime.now().date(),
         is_active=True
     )
     db.session.add(calorie_goal)
