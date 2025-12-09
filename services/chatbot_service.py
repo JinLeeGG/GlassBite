@@ -509,13 +509,13 @@ Progress: {percentage_carbs:.0f}%"""
         if calorie_goal or protein_goal or carb_goal:
             avg_percentage = 0
             count = 0
-            if calorie_goal and summary:
+            if calorie_goal and summary and calorie_goal.target_value > 0:
                 avg_percentage += (summary.total_calories / calorie_goal.target_value * 100)
                 count += 1
-            if protein_goal and summary:
+            if protein_goal and summary and protein_goal.target_value > 0:
                 avg_percentage += (summary.total_protein / protein_goal.target_value * 100)
                 count += 1
-            if carb_goal and summary:
+            if carb_goal and summary and carb_goal.target_value > 0:
                 avg_percentage += (summary.total_carbs / carb_goal.target_value * 100)
                 count += 1
             
