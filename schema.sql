@@ -91,12 +91,12 @@ CREATE TABLE daily_summaries (
 );
 
 -- 5. Goals Table
+-- Supports: calorie_target, protein_target, carb_target
 CREATE TABLE goals (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     goal_type VARCHAR(50),
     target_value FLOAT NOT NULL,
-    goal_details JSONB,
     is_active BOOLEAN DEFAULT TRUE
 );
 

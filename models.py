@@ -141,10 +141,9 @@ class Goal(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    goal_type = db.Column(db.String(50))  # calorie_target, protein_target
+    goal_type = db.Column(db.String(50))  # calorie_target, protein_target, carb_target
     target_value = db.Column(db.Float, nullable=False)
     is_active = db.Column(db.Boolean, default=True, index=True)
-    goal_details = db.Column(db.JSON)  # Optional future use
     
     # Relationships
     user = db.relationship('User', back_populates='goals')

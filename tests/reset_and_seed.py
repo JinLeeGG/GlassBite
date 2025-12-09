@@ -13,6 +13,10 @@ from models import db, User, Meal, FoodItem, FoodNutrient, DailySummary, Goal
 from config import Config
 import random
 
+def get_test_phone_number():
+    """Get WhatsApp test number from environment"""
+    return os.getenv('TWILIO_WHATSAPP_NUMBER', 'whatsapp:+14155238886')  # Default to Twilio sandbox
+
 def clear_user_data(user_id):
     """Clear meal data for a specific user only (keeps user record)"""
     print(f"🗑️  Clearing data for user ID {user_id}...")
@@ -38,17 +42,17 @@ def seed_test_data():
     """Add realistic test data"""
     print("🌱 Seeding test data...")
     
-    # Find user with WhatsApp phone number format
-    user = User.query.filter(User.phone_number.like('whatsapp:%')).first()
+    # Get WhatsApp number from environment
+    test_phone = get_test_phone_number()
+    print(f"📱 Using WhatsApp number: {test_phone}")
+    
+    # Find or create user with this WhatsApp number
+    user = User.query.filter_by(phone_number=test_phone).first()
     
     if not user:
-        # Fallback: use any existing user
-        user = User.query.first()
-        
-    if not user:
-        # Create test user if none exists
+        # Create user with WhatsApp number from environment
         user = User(
-            phone_number="+1234567890",  # Default test number
+            phone_number=test_phone,
             dietary_restrictions="",
             created_at=datetime.now() - timedelta(days=14)
         )
@@ -222,21 +226,28 @@ def seed_test_data():
     # Add goals
     calorie_goal = Goal(
         user_id=user.id,
-        goal_type='calories',
+        goal_type='calorie_target',
         target_value=2000,
         is_active=True
     )
     protein_goal = Goal(
         user_id=user.id,
-        goal_type='protein',
+        goal_type='protein_target',
         target_value=150,
+        is_active=True
+    )
+    carb_goal = Goal(
+        user_id=user.id,
+        goal_type='carb_target',
+        target_value=250,
         is_active=True
     )
     db.session.add(calorie_goal)
     db.session.add(protein_goal)
+    db.session.add(carb_goal)
     
     db.session.commit()
-    print("✅ Added goals: 2000 cal, 150g protein")
+    print("✅ Added goals: 2000 cal, 150g protein, 250g carbs")
     print("\n🎉 Test data seeded successfully!")
     print(f"📊 Total: {Meal.query.count()} meals, {FoodItem.query.count()} food items")
 

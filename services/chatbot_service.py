@@ -270,19 +270,20 @@ class ChatbotService:
         numbers = re.findall(r'\d+', message_text)
         
         if not numbers:
-            return "Please specify a number (e.g., 'My goal is 2000 calories' or 'My protein goal is 150g')"
+            return "Please specify a number (e.g., 'My goal is 2000 calories', 'My protein goal is 150g', or 'My carb goal is 250g')"
         
         target = int(numbers[0])
         
         # Determine goal type
         if 'protein' in message_text.lower():
             goal_type = 'protein_target'
-            unit = 'g'
-            other_goal_type = 'calorie_target'
+            unit = 'g protein'
+        elif 'carb' in message_text.lower():
+            goal_type = 'carb_target'
+            unit = 'g carbs'
         else:
             goal_type = 'calorie_target'
             unit = 'calories'
-            other_goal_type = 'protein_target'
         
         # Deactivate old goals of this type
         old_goals = Goal.query.filter_by(
@@ -306,16 +307,21 @@ class ChatbotService:
         
         response = f"Goal set! Targeting {target} {unit} per day."
         
-        # Check if user has other active goals
-        other_goal = Goal.query.filter_by(
+        # Show all active goals
+        all_goals = Goal.query.filter_by(
             user_id=user_id,
-            goal_type=other_goal_type,
             is_active=True
-        ).first()
+        ).all()
         
-        if other_goal:
-            other_unit = 'calories' if other_goal_type == 'calorie_target' else 'g protein'
-            response += f"\n\nYou also have a {other_unit} goal of {other_goal.target_value:.0f}."
+        if len(all_goals) > 1:
+            response += "\n\nYour active goals:"
+            for g in all_goals:
+                if g.goal_type == 'calorie_target':
+                    response += f"\n• {g.target_value:.0f} calories"
+                elif g.goal_type == 'protein_target':
+                    response += f"\n• {g.target_value:.0f}g protein"
+                elif g.goal_type == 'carb_target':
+                    response += f"\n• {g.target_value:.0f}g carbs"
         
         return response
     
@@ -405,7 +411,7 @@ Meals logged: {summary.meal_count}"""
     def handle_goal_progress(self, user_id):
         """Show goal progress for all active goals"""
         
-        # Get both calorie and protein goals
+        # Get all three goals
         calorie_goal = Goal.query.filter_by(
             user_id=user_id,
             goal_type='calorie_target',
@@ -418,7 +424,13 @@ Meals logged: {summary.meal_count}"""
             is_active=True
         ).first()
         
-        if not calorie_goal and not protein_goal:
+        carb_goal = Goal.query.filter_by(
+            user_id=user_id,
+            goal_type='carb_target',
+            is_active=True
+        ).first()
+        
+        if not calorie_goal and not protein_goal and not carb_goal:
             return "You haven't set any goals yet. Send me 'My goal is 2000 calories' to get started!"
         
         summary = DailySummary.query.filter_by(
@@ -433,6 +445,8 @@ Meals logged: {summary.meal_count}"""
                 response_parts.append(f"Calorie goal: {calorie_goal.target_value:.0f} calories")
             if protein_goal:
                 response_parts.append(f"Protein goal: {protein_goal.target_value:.0f}g")
+            if carb_goal:
+                response_parts.append(f"Carb goal: {carb_goal.target_value:.0f}g")
             return "\n".join(response_parts)
         
         response_parts = []
@@ -473,8 +487,26 @@ Progress: {percentage_protein:.0f}%"""
             
             response_parts.append(protein_section)
         
+        # Show carb progress if goal exists
+        if carb_goal:
+            current_carbs = summary.total_carbs
+            percentage_carbs = (current_carbs / carb_goal.target_value * 100) if carb_goal.target_value > 0 else 0
+            remaining_carbs = carb_goal.target_value - current_carbs
+            
+            carb_section = f"""Carb Goal:
+Target: {carb_goal.target_value:.0f}g
+Current: {current_carbs:.0f}g
+Progress: {percentage_carbs:.0f}%"""
+            
+            if remaining_carbs > 0:
+                carb_section += f"\n{remaining_carbs:.0f}g remaining"
+            else:
+                carb_section += f"\n{abs(remaining_carbs):.0f}g over goal"
+            
+            response_parts.append(carb_section)
+        
         # Add encouragement based on overall progress
-        if calorie_goal or protein_goal:
+        if calorie_goal or protein_goal or carb_goal:
             avg_percentage = 0
             count = 0
             if calorie_goal and summary:
@@ -482,6 +514,9 @@ Progress: {percentage_protein:.0f}%"""
                 count += 1
             if protein_goal and summary:
                 avg_percentage += (summary.total_protein / protein_goal.target_value * 100)
+                count += 1
+            if carb_goal and summary:
+                avg_percentage += (summary.total_carbs / carb_goal.target_value * 100)
                 count += 1
             
             if count > 0:
