@@ -469,8 +469,6 @@ GlassBite/
 
 Ray-Ban Meta glasses are worn all day - users listen, not read:
 
-- Removed all emojis (TTS reads "체크마크" instead of skipping)
-- Removed progress bars (visual ████░░░░ is meaningless in audio)
 - Removed markdown (formatting ignored by TTS)
 - Expanded abbreviations (grams not g, calories not cal)
 
