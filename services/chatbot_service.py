@@ -53,6 +53,10 @@ class ChatbotService:
         if any(phrase in message for phrase in goal_progress_strict):
             return 'goal_progress', {}
         
+        # Single word commands
+        if message.strip() in ['progress', 'goal', 'goals']:
+            return 'goal_progress', {}
+        
         # Fuzzy: question words + goal/progress words
         # But skip if it's clearly NOT a question (negative statements, uncertain statements)
         if 'goal' in words or 'progress' in words or 'target' in words:

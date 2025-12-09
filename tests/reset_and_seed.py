@@ -15,54 +15,43 @@ import random
 
 def get_test_phone_number():
     """Get WhatsApp test number from environment"""
-    return os.getenv('TWILIO_WHATSAPP_NUMBER', 'whatsapp:+14155238886')  # Default to Twilio sandbox
+    return os.getenv('TEST_WHATSAPP_NUMBER', 'whatsapp:+14155238886')  # Default to Twilio sandbox
 
-def clear_user_data(user_id):
-    """Clear meal data for a specific user only (keeps user record)"""
-    print(f"🗑️  Clearing data for user ID {user_id}...")
+def clear_all_data():
+    """Clear ALL data and users (complete reset)"""
+    print("🗑️  Clearing all data...")
     
-    # Get all meals for this user
-    meals = Meal.query.filter_by(user_id=user_id).all()
-    meal_ids = [m.id for m in meals]
-    
-    if meal_ids:
-        # Delete food items for these meals
-        FoodItem.query.filter(FoodItem.meal_id.in_(meal_ids)).delete(synchronize_session=False)
-        # Delete the meals
-        Meal.query.filter_by(user_id=user_id).delete()
-    
-    # Delete summaries and goals for this user
-    DailySummary.query.filter_by(user_id=user_id).delete()
-    Goal.query.filter_by(user_id=user_id).delete()
+    # Delete in correct order (respecting foreign keys)
+    FoodNutrient.query.delete()
+    FoodItem.query.delete()
+    Meal.query.delete()
+    DailySummary.query.delete()
+    Goal.query.delete()
+    User.query.delete()
     
     db.session.commit()
-    print(f"✅ Data cleared for user ID {user_id}!")
+    print("✅ All data cleared!")
 
 def seed_test_data():
     """Add realistic test data"""
     print("🌱 Seeding test data...")
     
+    # Clear all existing data first
+    clear_all_data()
+    
     # Get WhatsApp number from environment
     test_phone = get_test_phone_number()
     print(f"📱 Using WhatsApp number: {test_phone}")
     
-    # Find or create user with this WhatsApp number
-    user = User.query.filter_by(phone_number=test_phone).first()
-    
-    if not user:
-        # Create user with WhatsApp number from environment
-        user = User(
-            phone_number=test_phone,
-            dietary_restrictions="",
-            created_at=datetime.now() - timedelta(days=14)
-        )
-        db.session.add(user)
-        db.session.commit()
-        print(f"✅ Created test user: {user.phone_number}")
-    else:
-        # Clear existing data for this user before seeding
-        clear_user_data(user.id)
-        print(f"✅ Using existing user: {user.phone_number} (ID: {user.id})")
+    # Create fresh user with WhatsApp number from environment
+    user = User(
+        phone_number=test_phone,
+        dietary_restrictions="",
+        created_at=datetime.now() - timedelta(days=14)
+    )
+    db.session.add(user)
+    db.session.commit()
+    print(f"✅ Created test user: {user.phone_number}")
     
     # Sample meals for the last 7 days
     meal_templates = [
@@ -256,7 +245,7 @@ if __name__ == '__main__':
     
     with app.app_context():
         print("=" * 60)
-        print("DATABASE SEED (preserves WhatsApp user)")
+        print("DATABASE RESET & SEED")
         print("=" * 60)
         seed_test_data()
         print("\n" + "=" * 60)

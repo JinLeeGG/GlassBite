@@ -253,8 +253,20 @@ def test_edge_cases():
         
         chatbot = ChatbotService()
         
+        print("\n" + "=" * 60)
+        print("TEST 13: Single word commands")
         print("=" * 60)
-        print("TEST 13: Goal setting without number")
+        # Test that "progress", "goal", "goals" work
+        question_type, _ = chatbot.classify_question("progress")
+        assert question_type == 'goal_progress', f"Expected 'goal_progress', got '{question_type}'"
+        question_type, _ = chatbot.classify_question("goal")
+        assert question_type == 'goal_progress', f"Expected 'goal_progress', got '{question_type}'"
+        question_type, _ = chatbot.classify_question("goals")
+        assert question_type == 'goal_progress', f"Expected 'goal_progress', got '{question_type}'"
+        print("✅ Single word commands correctly classified\n")
+        
+        print("=" * 60)
+        print("TEST 14: Goal setting without number")
         print("=" * 60)
         response = chatbot.handle_goal_setting(user.id, "My goal is lots of calories")
         print(response)
@@ -262,7 +274,7 @@ def test_edge_cases():
         print("✅ PASSED\n")
         
         print("=" * 60)
-        print("TEST 14: Zero division protection")
+        print("TEST 15: Zero division protection")
         print("=" * 60)
         # Create goal with 0 value (edge case)
         Goal.query.filter_by(user_id=user.id).delete()
@@ -296,7 +308,7 @@ def test_all_goal_types():
         db.session.commit()
         
         print("=" * 60)
-        print("TEST 15: Only calorie goal")
+        print("TEST 16: Only calorie goal")
         print("=" * 60)
         goal = Goal(
             user_id=user.id,
@@ -315,7 +327,7 @@ def test_all_goal_types():
         print("✅ PASSED\n")
         
         print("=" * 60)
-        print("TEST 16: Only protein goal")
+        print("TEST 17: Only protein goal")
         print("=" * 60)
         Goal.query.filter_by(user_id=user.id).delete()
         goal = Goal(
@@ -335,7 +347,7 @@ def test_all_goal_types():
         print("✅ PASSED\n")
         
         print("=" * 60)
-        print("TEST 17: Only carb goal")
+        print("TEST 18: Only carb goal")
         print("=" * 60)
         Goal.query.filter_by(user_id=user.id).delete()
         goal = Goal(
