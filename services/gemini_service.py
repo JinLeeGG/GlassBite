@@ -24,7 +24,7 @@ class GeminiService:
     
     def analyze_food_image(self, image_url, voice_note_text, twilio_auth):
         """
-        Analyze a food image and return structured food data
+        Analyze a food image and return structured food data with ingredients
         
         Args:
             image_url: URL of the food image from Twilio
@@ -37,7 +37,8 @@ class GeminiService:
                 {
                     "name": "grilled chicken breast",
                     "portion_grams": 150,
-                    "confidence": 0.92
+                    "confidence": 0.92,
+                    "ingredients": ["chicken", "olive oil", "herbs"]
                 },
                 ...
             ]
@@ -78,13 +79,13 @@ class GeminiService:
             raise
     
     def _create_analysis_prompt(self, voice_note_text):
-        """Create the prompt for Gemini analysis"""
+        """Create the prompt for Gemini analysis with ingredient detection"""
         
         user_context = f'User described it as: "{voice_note_text}"' if voice_note_text else "No user description provided."
         
         prompt = f"""Analyze this food image. {user_context}
 
-Identify all visible food items and estimate portion sizes in grams.
+Identify all visible food items, estimate portion sizes, AND list key ingredients for allergen detection.
 
 CRITICAL: Return ONLY a valid JSON array. No markdown formatting, no code blocks, no explanations.
 
@@ -93,12 +94,19 @@ Format:
   {{
     "name": "specific food name (e.g., grilled chicken breast, not just chicken)",
     "portion_grams": estimated_weight_in_grams,
-    "confidence": score_between_0_and_1
+    "confidence": score_between_0_and_1,
+    "ingredients": ["main ingredient 1", "ingredient 2", "ingredient 3"]
   }}
 ]
 
 Guidelines:
 - Be specific: "grilled chicken breast" not "chicken"
+- List 2-5 key ingredients per food (focus on allergens):
+  * For "cheese pizza": ["wheat dough", "mozzarella cheese", "tomato sauce"]
+  * For "chicken curry": ["chicken", "coconut milk", "curry spices"]
+  * For "caesar salad": ["romaine lettuce", "parmesan cheese", "caesar dressing", "croutons"]
+- Include cooking method in ingredients if relevant: "fried", "butter-cooked", etc.
+- ALWAYS include common allergens: dairy, nuts, gluten, eggs, soy, shellfish, fish
 - Use standard serving sizes as reference:
   * Standard plate diameter = 10 inches (25cm)
   * Fist = ~150g, Palm = ~100g, Thumb = ~30g
@@ -163,8 +171,15 @@ Return ONLY the JSON array, starting with [ and ending with ]."""
             raise ValueError("Response is not a list")
         
         for food in foods:
+            # Required fields
             if not all(k in food for k in ['name', 'portion_grams', 'confidence']):
                 raise ValueError(f"Food item missing required fields: {food}")
+            
+            # Ingredients is optional but should be a list if present
+            if 'ingredients' in food and not isinstance(food['ingredients'], list):
+                food['ingredients'] = []
+            elif 'ingredients' not in food:
+                food['ingredients'] = []
         
         return foods
     
