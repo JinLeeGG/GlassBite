@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timedelta, date
 from models import db, User, Meal, FoodItem, DailySummary, Goal
 from sqlalchemy import func
+from services.recommendation_service import recommendation_engine
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,17 @@ class ChatbotService:
         
         # ===== RECOMMENDATIONS =====
         if any(word in message for word in ['what should', 'recommend', 'suggest', 'should i eat']):
-            return 'recommendation', {}
+            # Check for specific meal type
+            meal_type = None
+            if 'breakfast' in message:
+                meal_type = 'breakfast'
+            elif 'lunch' in message:
+                meal_type = 'lunch'
+            elif 'dinner' in message:
+                meal_type = 'dinner'
+            elif 'snack' in message:
+                meal_type = 'snack'
+            return 'recommendation', {'meal_type': meal_type}
         
         # ===== HELP =====
         if any(word in message for word in ['help', 'what can', 'how do', 'commands']):
@@ -263,7 +274,8 @@ class ChatbotService:
                 return self.handle_pattern_analysis(user_id)
             
             elif question_type == 'recommendation':
-                return self.handle_recommendation(user_id)
+                meal_type = params.get('meal_type')
+                return self.handle_recommendation(user_id, meal_type)
             
             elif question_type == 'history_query':
                 return self.handle_history_query(user_id, params['timeframe'])
@@ -664,64 +676,27 @@ Weekend average: {weekend_avg:.0f} cal/day"""
         
         return response
     
-    def handle_recommendation(self, user_id):
-        """Provide personalized meal recommendations"""
+    def handle_recommendation(self, user_id, meal_type=None):
+        """Provide AI-powered personalized meal recommendations"""
         
-        today = DailySummary.query.filter_by(
-            user_id=user_id,
-            date=date.today()
-        ).first()
-        
-        goal = Goal.query.filter_by(
-            user_id=user_id,
-            goal_type='calorie_target',
-            is_active=True
-        ).first()
-        
-        if not goal:
-            return "Set a calorie goal first! Send me 'My goal is 2000 calories'"
-        
-        if not today:
-            return f"""You have your full {goal.target_value:.0f} calorie budget today!
-
-Start with a balanced breakfast to fuel your day."""
-        
-        remaining_cal = goal.target_value - today.total_calories
-        protein_goal = 100  # Assume 100g protein goal
-        remaining_protein = protein_goal - today.total_protein
-        
-        if remaining_cal < 0:
-            return f"""You're {abs(remaining_cal):.0f} calories over your goal today.
-
-Consider:
-Light walk or exercise
-Smaller portions for remaining meals
-More vegetables, low calorie and filling"""
-        
-        elif remaining_cal < 300:
-            return f"""You have {remaining_cal:.0f} calories left today.
-
-Light options:
-Greek yogurt with berries, 150 calories, 15 grams protein
-Small salad with grilled chicken, 250 calories, 25 grams protein
-Protein shake, 200 calories, 20 grams protein"""
-        
-        elif remaining_cal < 600:
-            return f"""You have {remaining_cal:.0f} calories left today.
-
-Balanced meals:
-Grilled salmon with quinoa, 500 calories, 35 grams protein
-Chicken breast with sweet potato, 450 calories, 40 grams protein
-Turkey wrap with veggies, 400 calories, 30 grams protein"""
-        
+        # If meal type specified, use it; otherwise determine from time
+        if meal_type:
+            context = meal_type
         else:
-            protein_msg = f"\nAim for {remaining_protein:.0f} grams more protein" if remaining_protein > 20 else ""
-            return f"""You have {remaining_cal:.0f} calories left today.
-
-You have plenty of room! Consider:
-Full dinner with protein, carbs, and veggies{protein_msg}
-Stay hydrated
-Don't skip meals"""
+            current_hour = datetime.now().hour
+            if 6 <= current_hour < 11:
+                context = 'breakfast'
+            elif 11 <= current_hour < 15:
+                context = 'lunch'
+            elif 15 <= current_hour < 18:
+                context = 'snack'
+            elif 18 <= current_hour < 22:
+                context = 'dinner'
+            else:
+                context = 'general'
+        
+        # Use AI-powered recommendation engine with database insights
+        return recommendation_engine.get_recommendations(user_id, context)
     
     def handle_history_query(self, user_id, timeframe):
         """Show meal history"""
