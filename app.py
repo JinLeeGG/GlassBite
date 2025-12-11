@@ -92,8 +92,12 @@ def whatsapp_webhook():
                 meal_type='pending'
             ).order_by(Meal.timestamp.desc()).first()
             
-            if pending_meal:
-                # User is responding to meal type question
+            # Check if this looks like a cuisine/food request rather than just a meal type response
+            food_keywords = ['food', 'cuisine', 'dish', 'meal plan', 'recommend', 'suggest', 'korean', 'vietnamese', 'japanese', 'chinese', 'thai', 'indian', 'mexican', 'mediterranean', 'italian']
+            is_food_request = any(keyword in message_text.lower() for keyword in food_keywords)
+            
+            if pending_meal and not is_food_request:
+                # User is responding to meal type question (not a food recommendation request)
                 from services.meal_processor import meal_processor
                 meal_type = meal_processor.extract_meal_type_from_text(message_text)
                 

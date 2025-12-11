@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timedelta, date
 from models import db, User, Meal, FoodItem, DailySummary, Goal
 from sqlalchemy import func
+from services.recommendation_service import get_daily_meal_plan, get_cuisine_recommendation
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,54 @@ class ChatbotService:
         # ===== PATTERN ANALYSIS =====
         if any(word in message for word in ['pattern', 'usually', 'tend to', 'eating habits']):
             return 'pattern_analysis', {}
+        
+        # ===== CUISINE-SPECIFIC RECOMMENDATIONS (check BEFORE meal plan) =====
+        cuisine_keywords = {
+            'korean': ['korean', 'bibimbap', 'kimchi', 'bulgogi', 'korea'],
+            'vietnamese': ['vietnamese', 'pho', 'banh mi', 'vietnam', 'viet'],
+            'japanese': ['japanese', 'sushi', 'ramen', 'japan', 'teriyaki'],
+            'chinese': ['chinese', 'china', 'kung pao', 'dim sum'],
+            'thai': ['thai', 'thailand', 'pad thai', 'curry'],
+            'indian': ['indian', 'india', 'curry', 'biryani', 'tikka'],
+            'mexican': ['mexican', 'mexico', 'tacos', 'burrito'],
+            'mediterranean': ['mediterranean', 'greek', 'hummus', 'falafel'],
+            'italian': ['italian', 'italy', 'pasta', 'pizza']
+        }
+        
+        # Check for cuisine-specific requests
+        detected_cuisine = None
+        for cuisine, keywords in cuisine_keywords.items():
+            if any(keyword in message for keyword in keywords):
+                detected_cuisine = cuisine
+                break
+        
+        if detected_cuisine:
+            # Extract meal type if specified
+            meal_type = None
+            if 'breakfast' in message:
+                meal_type = 'breakfast'
+            elif 'lunch' in message:
+                meal_type = 'lunch'
+            elif 'dinner' in message:
+                meal_type = 'dinner'
+            elif 'snack' in message:
+                meal_type = 'snack'
+            
+            return 'cuisine_recommendation', {'cuisine': detected_cuisine, 'meal_type': meal_type}
+        
+        # ===== AI MEAL PLAN (check before simple recommendations) =====
+        meal_plan_phrases = [
+            'meal plan',
+            'what should i eat today',
+            'plan my meals',
+            'recommend meals for today',
+            'suggest meals for today',
+            'daily meal plan',
+            'plan for today',
+            'what to eat today'
+        ]
+        if any(phrase in message for phrase in meal_plan_phrases):
+            return 'daily_meal_plan', {}
         
         # ===== RECOMMENDATIONS =====
         if any(word in message for word in ['what should', 'recommend', 'suggest', 'should i eat']):
@@ -250,6 +299,16 @@ class ChatbotService:
             
             elif question_type == 'pattern_analysis':
                 return self.handle_pattern_analysis(user_id)
+            
+            elif question_type == 'cuisine_recommendation':
+                return get_cuisine_recommendation(
+                    user_id, 
+                    params['cuisine'], 
+                    params.get('meal_type')
+                )
+            
+            elif question_type == 'daily_meal_plan':
+                return get_daily_meal_plan(user_id)
             
             elif question_type == 'recommendation':
                 return self.handle_recommendation(user_id)
@@ -750,8 +809,13 @@ COMPARE & ANALYZE
 HISTORY
 "What did I eat yesterday?" - Past meals
 
-PLANNING
-"What should I eat next?" - Smart recommendations
+AI MEAL PLANNING
+"Create a meal plan for today" - Full day plan based on your history
+"Plan my meals" - Personalized recommendations
+"What should I eat today?" - Complete daily guide
+
+QUICK SUGGESTIONS
+"What should I eat next?" - Single meal ideas
 
 GOALS
 "My goal is 2000 calories" - Set calorie target
