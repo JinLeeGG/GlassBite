@@ -14,7 +14,8 @@ CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     phone_number VARCHAR(50) UNIQUE NOT NULL,
     dietary_restrictions TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT NOW(),
+    last_meal_id INTEGER
 );
 
 -- 2. Meals Table
@@ -99,6 +100,10 @@ CREATE TABLE goals (
     target_value FLOAT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE
 );
+
+-- Add foreign key constraint for last_meal_id (after meals table exists)
+ALTER TABLE users ADD CONSTRAINT fk_users_last_meal 
+    FOREIGN KEY (last_meal_id) REFERENCES meals(id) ON DELETE SET NULL;
 
 -- Create Indexes for Performance
 CREATE INDEX idx_users_phone ON users(phone_number);
