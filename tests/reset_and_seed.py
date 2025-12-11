@@ -21,6 +21,10 @@ def clear_all_data():
     """Clear ALL data and users (complete reset)"""
     print("🗑️  Clearing all data...")
     
+    # First, remove foreign key references
+    db.session.execute(db.text("UPDATE users SET last_meal_id = NULL"))
+    db.session.commit()
+    
     # Delete in correct order (respecting foreign keys)
     FoodNutrient.query.delete()
     FoodItem.query.delete()
