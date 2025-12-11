@@ -20,7 +20,7 @@ class GeminiService:
     """Service for analyzing food images with Gemini AI"""
     
     def __init__(self):
-        self.model = genai.GenerativeModel('gemini-pro-latest')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
     
     def analyze_food_image(self, image_url, voice_note_text, twilio_auth):
         """
