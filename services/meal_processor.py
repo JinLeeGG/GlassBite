@@ -297,7 +297,7 @@ class MealProcessor:
         )
         
         logger.info(f"Completed meal {meal.id} as {meal_type}")
-        return message
+        return message, meal.id
     
     def update_meal_type(self, user_id, new_meal_type):
         """Update the most recent meal's type"""
@@ -394,95 +394,158 @@ class MealProcessor:
         
         return goal
     
+    def get_meal_details(self, meal_id, user_id):
+        """Get detailed information for a specific meal (for 'detail' command)"""
+        meal = Meal.query.filter_by(id=meal_id, user_id=user_id).first()
+        
+        if not meal:
+            return None
+        
+        # Get food items for this meal
+        food_items = FoodItem.query.filter_by(meal_id=meal.id).all()
+        
+        if not food_items:
+            return None
+        
+        # Calculate totals
+        total_calories = 0
+        total_protein = 0
+        total_carbs = 0
+        total_fat = 0
+        total_fiber = 0
+        total_sugar = 0
+        total_sodium = 0
+        
+        for item in food_items:
+            if item.nutrients:
+                total_calories += item.nutrients.calories or 0
+                total_protein += item.nutrients.protein_g or 0
+                total_carbs += item.nutrients.carbs_g or 0
+                total_fat += item.nutrients.fat_g or 0
+                total_fiber += item.nutrients.fiber_g or 0
+                total_sugar += item.nutrients.sugar_g or 0
+                total_sodium += item.nutrients.sodium_mg or 0
+        
+        # Get daily totals and goal
+        daily_totals = self.get_daily_totals(user_id)
+        active_goal = self.get_active_goal(user_id)
+        
+        # Format detailed messages
+        messages = self.format_meal_details(
+            food_items,
+            total_calories,
+            total_protein,
+            total_carbs,
+            total_fat,
+            total_fiber,
+            total_sugar,
+            total_sodium,
+            daily_totals,
+            active_goal,
+            meal.meal_type
+        )
+        
+        return messages
+    
     def format_meal_confirmation(self, food_items, total_calories, total_protein,
                                  total_carbs, total_fat, daily_totals, goal, 
                                  low_confidence_foods, meal_type):
-        """Create well-formatted confirmation message (voice-friendly)"""
+        """Create concise confirmation message (under 1600 chars for Twilio)"""
         
         meal_name = meal_type.title()
+        item_count = len(food_items)
         
-        message = f"Meal logged as {meal_name}.\n"
-        message += "Wrong? Reply: 'change to breakfast', 'lunch', 'dinner', or 'snack'\n\n"
+        message = f"✓ {meal_name} logged ({item_count} items)\n\n"
+        message += f"Meal: {total_calories:.0f} cal | {total_protein:.0f}g protein | {total_carbs:.0f}g carbs\n"
+        message += f"Today: {daily_totals['calories']:.0f} cal | {daily_totals['protein']:.0f}g protein | {daily_totals['carbs']:.0f}g carbs\n"
         
-        # Food list with individual nutrients (Tier 1: calories, protein, carbs, fat, fiber, sugar, sodium)
-        message += "You had:\n"
-        meal_fiber_total = 0
-        meal_sugar_total = 0
-        meal_sodium_total = 0
-        
-        for item in food_items:
-            message += f"{item.name} ({item.portion_size_grams:.0f}g)\n"
-            if item.nutrients:
-                # Extract fiber and sugar for carbs context
-                fiber = item.nutrients.fiber_g or 0
-                sugar = item.nutrients.sugar_g or 0
-                sodium = item.nutrients.sodium_mg or 0
-                
-                meal_fiber_total += fiber
-                meal_sugar_total += sugar
-                meal_sodium_total += sodium
-                
-                # Format carbs with fiber/sugar context
-                carbs_detail = f"{item.nutrients.carbs_g:.0f}g carbs"
-                if fiber > 0 and sugar > 0:
-                    carbs_detail += f" ({fiber:.0f}g fiber, {sugar:.0f}g sugar)"
-                elif fiber > 0:
-                    carbs_detail += f" ({fiber:.0f}g fiber)"
-                elif sugar > 0:
-                    carbs_detail += f" ({sugar:.0f}g sugar)"
-                
-                message += f"  {item.nutrients.calories:.0f} cal | {item.nutrients.protein_g:.0f}g protein | {carbs_detail} | {item.nutrients.fat_g:.0f}g fat | {sodium:.0f}mg sodium\n"
-        
-        # This meal totals with fiber context
-        message += f"\n--- This Meal Total ---\n"
-        carbs_meal_detail = f"{total_carbs:.0f}g carbs"
-        if meal_fiber_total > 0:
-            carbs_meal_detail += f" ({meal_fiber_total:.0f}g fiber)"
-        message += f"{total_calories:.0f} cal | {total_protein:.0f}g protein | {carbs_meal_detail} | {total_fat:.0f}g fat | {meal_sodium_total:.0f}mg sodium\n"
-        
-        # Daily totals with fiber context
-        message += f"\n--- Today's Total ---\n"
-        daily_fiber = daily_totals.get('fiber', 0)
-        daily_sodium = daily_totals.get('sodium', 0)
-        carbs_daily_detail = f"{daily_totals['carbs']:.0f}g carbs"
-        if daily_fiber > 0:
-            carbs_daily_detail += f" ({daily_fiber:.0f}g fiber)"
-        message += f"{daily_totals['calories']:.0f} cal | {daily_totals['protein']:.0f}g protein | {carbs_daily_detail} | {daily_totals['fat']:.0f}g fat | {daily_sodium:.0f}mg sodium\n"
-        
-        # Goal progress
+        # Goal progress (compact)
         if goal:
             remaining = goal.target_value - daily_totals['calories']
             percentage = (daily_totals['calories'] / goal.target_value) * 100
             
-            message += f"\nGoal: {goal.target_value:.0f} calories\n"
-            message += f"Progress: {percentage:.0f}%\n"
+            status = "+" if remaining < 0 else ""
+            message += f"\nGoal: {goal.target_value:.0f} cal ({percentage:.0f}%) {status}{abs(remaining):.0f} {'over' if remaining < 0 else 'left'}"
             
-            if remaining > 0:
-                message += f"{remaining:.0f} calories remaining\n"
-            else:
-                message += f"{abs(remaining):.0f} calories over goal\n"
-            
-            # Sodium warning if high
-            daily_sodium = daily_totals.get('sodium', 0)
-            if daily_sodium > 2300:
-                message += f"\nHigh sodium intake today (recommended: 2300mg daily)."
-            
-            # Motivational message
-            if percentage < 50:
-                message += "\nKeep going!"
-            elif percentage < 90:
-                message += "\nGreat progress!"
+            # Brief status emoji
+            if percentage < 90:
+                message += " 💪"
             elif percentage < 110:
-                message += "\nAlmost there!"
+                message += " 🎯"
             else:
-                message += "\nOver goal. Consider lighter meals."
+                message += " ⚠️"
+            message += "\n"
         
-        # Low confidence warning
+        # Warnings (compact)
+        warnings = []
+        daily_sodium = daily_totals.get('sodium', 0)
+        if daily_sodium > 2300:
+            warnings.append("High sodium")
         if low_confidence_foods:
-            message += f"\n\nNot completely sure about: {', '.join(low_confidence_foods[:2])}"
-            message += "\nSend a clearer photo next time for better accuracy."
+            warnings.append(f"Unsure: {low_confidence_foods[0]}")
+        
+        if warnings:
+            message += f"\n⚠️ {' | '.join(warnings)}\n"
+        
+        # Offer detailed breakdown
+        message += f"\nReply 'detail' or 'list' for full breakdown"
+        if item_count > 10:
+            total_messages = (item_count + 4) // 5  # 5 items per message
+            message += f" ({total_messages} messages)"
+        message += "\nChange type? Reply: breakfast/lunch/dinner/snack"
         
         return message
+    
+    def format_meal_details(self, food_items, total_calories, total_protein,
+                           total_carbs, total_fat, total_fiber, total_sugar,
+                           total_sodium, daily_totals, goal, meal_type):
+        """Create detailed breakdown split into multiple messages (5 items per message)"""
+        
+        ITEMS_PER_MESSAGE = 5
+        messages = []
+        total_batches = (len(food_items) + ITEMS_PER_MESSAGE - 1) // ITEMS_PER_MESSAGE
+        
+        for batch_num in range(total_batches):
+            start_idx = batch_num * ITEMS_PER_MESSAGE
+            end_idx = min(start_idx + ITEMS_PER_MESSAGE, len(food_items))
+            batch_items = food_items[start_idx:end_idx]
+            
+            message = f"{meal_type.title()} Details [{batch_num + 1}/{total_batches}]\n\n"
+            
+            for item in batch_items:
+                n = item.nutrients
+                if n:
+                    message += f"{item.name} ({item.portion_size_grams:.0f}g)\n"
+                    message += f"{n.calories:.0f} cal | {n.protein_g:.0f}g protein | {n.carbs_g:.0f}g carbs | {n.fat_g:.0f}g fat\n"
+                    message += f"Fiber: {n.fiber_g:.0f}g | Sugar: {n.sugar_g:.0f}g | Sodium: {n.sodium_mg:.0f}mg\n\n"
+            
+            # Last message includes totals
+            if batch_num == total_batches - 1:
+                message += "═══════════════════\n"
+                message += f"MEAL TOTAL:\n"
+                message += f"{total_calories:.0f} cal | {total_protein:.0f}g protein | {total_carbs:.0f}g carbs | {total_fat:.0f}g fat\n"
+                message += f"Fiber: {total_fiber:.0f}g | Sugar: {total_sugar:.0f}g | Sodium: {total_sodium:.0f}mg\n\n"
+                
+                message += f"TODAY'S TOTAL:\n"
+                message += f"{daily_totals['calories']:.0f} cal | {daily_totals['protein']:.0f}g protein | {daily_totals['carbs']:.0f}g carbs | {daily_totals['fat']:.0f}g fat\n"
+                
+                if goal and goal.target_value:
+                    remaining = goal.target_value - daily_totals['calories']
+                    percentage = (daily_totals['calories'] / goal.target_value) * 100
+                    message += f"\nGoal: {goal.target_value:.0f} cal → {percentage:.0f}% "
+                    if remaining < 0:
+                        message += f"(Over by {abs(remaining):.0f} cal) ⚠️\n"
+                    else:
+                        message += f"({remaining:.0f} cal left) 💪\n"
+                
+                # Final warnings
+                daily_sodium = daily_totals.get('sodium', 0)
+                if daily_sodium > 2300:
+                    message += f"\nHigh sodium warning: {daily_sodium:.0f}mg (Recommended: <2300mg)"
+            
+            messages.append(message)
+        
+        return messages
 
 
 # Singleton instance

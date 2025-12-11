@@ -16,9 +16,11 @@ class User(db.Model):
     phone_number = db.Column(db.String(50), unique=True, nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     dietary_restrictions = db.Column(db.Text)
+    last_meal_id = db.Column(db.Integer, db.ForeignKey('meals.id'), nullable=True)
     
     # Relationships
-    meals = db.relationship('Meal', back_populates='user', cascade='all, delete-orphan')
+    meals = db.relationship('Meal', back_populates='user', cascade='all, delete-orphan', foreign_keys='Meal.user_id')
+    last_meal = db.relationship('Meal', foreign_keys=[last_meal_id], post_update=True)
     daily_summaries = db.relationship('DailySummary', back_populates='user', cascade='all, delete-orphan')
     goals = db.relationship('Goal', back_populates='user', cascade='all, delete-orphan')
     
@@ -39,7 +41,7 @@ class Meal(db.Model):
     processing_status = db.Column(db.String(20), default='pending')  # pending/analyzed/completed/failed
     
     # Relationships
-    user = db.relationship('User', back_populates='meals')
+    user = db.relationship('User', back_populates='meals', foreign_keys=[user_id])
     food_items = db.relationship('FoodItem', back_populates='meal', cascade='all, delete-orphan')
     
     def __repr__(self):

@@ -27,6 +27,10 @@ class ChatbotService:
         message = message_text.lower()
         words = set(message.split())
         
+        # ===== MEAL DETAILS REQUEST (check FIRST - very specific) =====
+        if message.strip() in ['detail', 'details', 'list', 'breakdown', 'full']:
+            return 'meal_details', {}
+        
         # ===== GOAL SETTING (check FIRST - most specific) =====
         # Strict pattern: explicit goal setting with numbers
         if re.search(r'(my goal is|goal is|set.+goal).+\d+', message):
@@ -229,7 +233,14 @@ class ChatbotService:
         """Route to appropriate question handler"""
         
         try:
-            if question_type == 'goal_setting':
+            if question_type == 'meal_details':
+                # Get last meal ID from user object
+                from models import User
+                user = User.query.get(user_id)
+                meal_id = user.last_meal_id if user else None
+                return self.handle_meal_details(user_id, meal_id)
+            
+            elif question_type == 'goal_setting':
                 return self.handle_goal_setting(user_id, message_text)
             
             elif question_type == 'daily_summary':
@@ -266,6 +277,35 @@ class ChatbotService:
         except Exception as e:
             logger.error(f"Error handling question: {e}")
             return "Sorry, I encountered an error. Please try again."
+    
+    def handle_meal_details(self, user_id, meal_id=None):
+        """Handle request for detailed meal breakdown"""
+        from services.meal_processor import meal_processor
+        
+        # If meal_id provided, use it; otherwise get most recent
+        if meal_id:
+            recent_meal = Meal.query.filter_by(
+                id=meal_id,
+                user_id=user_id,
+                processing_status='completed'
+            ).first()
+        else:
+            recent_meal = Meal.query.filter_by(
+                user_id=user_id,
+                processing_status='completed'
+            ).order_by(Meal.timestamp.desc()).first()
+        
+        if not recent_meal:
+            return "No recent meals found. Please log a meal first by sending a photo."
+        
+        # Get detailed messages
+        detail_messages = meal_processor.get_meal_details(recent_meal.id, user_id)
+        
+        if not detail_messages:
+            return "Could not retrieve meal details. Please try again."
+        
+        # Return as list (twilio_service will send multiple messages)
+        return detail_messages
     
     def handle_goal_setting(self, user_id, message_text):
         """Parse and set goals from natural language"""

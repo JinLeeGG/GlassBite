@@ -99,9 +99,13 @@ def whatsapp_webhook():
                 
                 if meal_type:
                     # Complete the meal processing
-                    confirmation_message = meal_processor.complete_meal_processing(user.id, meal_type)
+                    confirmation_message, meal_id = meal_processor.complete_meal_processing(user.id, meal_type)
                     
                     if confirmation_message:
+                        # Store meal ID for detail requests
+                        user.last_meal_id = meal_id
+                        db.session.commit()
+                        
                         from services.twilio_service import send_whatsapp_message
                         send_whatsapp_message(phone_number, confirmation_message)
                     else:
@@ -148,9 +152,17 @@ def whatsapp_webhook():
                 try:
                     response = handle_chatbot_question(user.id, phone_number, message_text)
                     
-                    # Send response
+                    # Send response (handle both single messages and lists)
                     from services.twilio_service import send_whatsapp_message
-                    send_whatsapp_message(phone_number, response)
+                    import time
+                    if isinstance(response, list):
+                        # Multiple messages (e.g., detailed meal breakdown)
+                        # Send sequentially with delay to preserve order
+                        for msg in response:
+                            send_whatsapp_message(phone_number, msg)
+                            time.sleep(0.5)  # 500ms delay between messages
+                    else:
+                        send_whatsapp_message(phone_number, response)
                 except Exception as e:
                     logger.error(f"Error handling question: {e}", exc_info=True)
                     from services.twilio_service import send_whatsapp_message
