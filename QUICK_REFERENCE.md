@@ -63,32 +63,15 @@
 • caesar salad: Contains Gluten (croutons)
 
 ✓ Safe items: apple
+
+🚫 MEAL NOT LOGGED
+This meal was not added to your diary due to dietary restriction violations.
+
+If this was incorrect, please update your restrictions with:
+"Remove [restriction name]"
 ```
 
-### Meal Type Prompt (with warnings):
-```
-Got it! I detected:
-• cheese pizza, 300g ⚠️ Dairy
-• caesar salad, 150g ⚠️ Gluten
-• apple, 100g
-
-Total: 650 calories, 28g protein
-
-⚠️ Contains restricted ingredients
-
-Is this breakfast, lunch, dinner, or snack?
-```
-
-### Final Confirmation (with summary):
-```
-✓ Lunch logged (3 items)
-
-🚨 WARNING: Contains Dairy (cheese), Gluten (croutons)
-
-Nutrition: 650 cal, 28g protein, 75g carbs, 25g fat
-
-Today: 1450/2000 cal (73%), 92/150g protein (61%)
-```
+**Note:** Meal processing STOPS here. No meal type prompt, no logging to database.
 
 ## 💻 Developer API Reference
 
@@ -174,12 +157,23 @@ for food in detected_foods:
 # 4. Validate meal
 validation_result = validate_meal(detected_foods, user_restrictions)
 
-# 5. Send immediate alert if violations
+# 5. BLOCK MEAL if violations found
 if validation_result['has_violations']:
+    # Mark meal as failed
+    meal.processing_status = 'failed'
+    db.session.commit()
+    
+    # Send alert with blocking message
     alert_message = allergen_service.format_alert_message(validation_result)
+    alert_message += "\n\n🚫 MEAL NOT LOGGED\n"
+    alert_message += "This meal was not added to your diary due to dietary restriction violations."
     send_whatsapp_message(phone_number, alert_message)
+    
+    # STOP - Do not continue processing
+    return
 
-# 6. Continue with meal processing...
+# 6. If no violations, continue with normal meal processing...
+# (USDA lookup, ask for meal type, log to database, etc.)
 ```
 
 ## 🧪 Testing

@@ -142,22 +142,41 @@ class ChatbotService:
             return 'recommendation', {'meal_type': meal_type}
         
         # ===== DIETARY RESTRICTIONS MANAGEMENT =====
-        if any(phrase in message for phrase in ['my restrictions', 'my allergies', 'set restrictions', 
-                                                'set allergies', 'update restrictions', 'dietary restrictions',
-                                                'i am allergic', "i'm allergic", 'i have allergies',
-                                                'my restrictions are', 'my allergies are']):
-            return 'restrictions_management', {}
+        # Check VIEW first (more specific patterns) before SET patterns
+        # Use partial matching to handle typos (allegy, allerg, restrict)
+        if any(phrase in message for phrase in ['show my', 'what are my', 'view my', 'what is my',
+                                                'list my', 'check my', "what's my"]):
+            # If it mentions restriction/allergy-related words (even with typos)
+            if any(word in message for word in ['restriction', 'restrict', 'allerg', 'allegy', 
+                                               'dietary', 'diet restriction']):
+                return 'view_restrictions', {}
         
-        if any(phrase in message for phrase in ['what are my restrictions', 'show my restrictions',
-                                                'what allergies', 'my dietary', 'show allergies',
-                                                'what am i allergic to']):
+        # Explicit view phrases
+        if any(phrase in message for phrase in ['what am i allergic', 'show allergies', 'view allergies',
+                                                'list allergies', 'check allergies']):
             return 'view_restrictions', {}
         
-        if 'add' in message and any(word in message for word in ['restriction', 'allergy', 'allergen']):
-            return 'add_restriction', {}
+        # Then check ADD/REMOVE (specific actions)
+        # More flexible - allow "add dairy" without explicit "restriction/allergy"
+        if message.startswith('add ') or ' add ' in message:
+            # If it mentions a known allergen or restriction word
+            if any(word in message for word in ['restriction', 'allergy', 'allergen', 'dairy', 'gluten', 
+                                               'nuts', 'shellfish', 'fish', 'eggs', 'soy', 'meat', 'pork', 
+                                               'alcohol', 'vegan', 'vegetarian', 'pescatarian', 'halal', 'kosher']):
+                return 'add_restriction', {}
         
-        if 'remove' in message and any(word in message for word in ['restriction', 'allergy', 'allergen']):
-            return 'remove_restriction', {}
+        if message.startswith('remove ') or ' remove ' in message:
+            # If it mentions a known allergen or restriction word
+            if any(word in message for word in ['restriction', 'allergy', 'allergen', 'dairy', 'gluten', 
+                                               'nuts', 'shellfish', 'fish', 'eggs', 'soy', 'meat', 'pork', 
+                                               'alcohol', 'vegan', 'vegetarian', 'pescatarian', 'halal', 'kosher']):
+                return 'remove_restriction', {}
+        
+        # Finally check SET patterns (least specific)
+        if any(phrase in message for phrase in ['my restrictions are', 'my allergies are', 'set restrictions', 
+                                                'set allergies', 'update restrictions', 'dietary restrictions',
+                                                'i am allergic', "i'm allergic", 'i have allergies']):
+            return 'restrictions_management', {}
         
         # ===== HELP =====
         if any(word in message for word in ['help', 'what can', 'how do', 'commands']):

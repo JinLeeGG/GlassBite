@@ -64,18 +64,22 @@ Successfully implemented a comprehensive real-time allergen detection and dietar
    - Parses user dietary restrictions
    - Detects allergens in all detected foods
    - Validates meal against restrictions
-   - Sends instant WhatsApp alert if violations found
+   - **If violations found: BLOCKS meal and stops processing**
+   - **If no violations: Continues with meal logging**
 
-2. **Meal Type Prompt with Warnings:**
-   - Created `_create_meal_type_prompt()` method
-   - Adds ⚠️ indicators next to foods with violations
-   - Shows allergen names inline
-   - Includes violation summary
+2. **Meal Blocking (NEW BEHAVIOR):**
+   - When violations detected, meal is marked as 'failed'
+   - User receives alert with "🚫 MEAL NOT LOGGED" message
+   - Meal is NOT saved to database
+   - No meal type prompt sent
+   - No nutrition added to daily totals
+   - Processing stops immediately
 
-3. **Final Confirmation with Allergen Summary:**
-   - Re-validates meal before final confirmation
-   - Adds prominent 🚨 warning if violations present
-   - Includes allergen summary in confirmation message
+3. **Normal Flow (No Violations):**
+   - Continues to USDA nutrition lookup
+   - Asks user for meal type
+   - Logs meal to database
+   - Updates daily nutrition totals
 
 ### 4. Chatbot Service Enhancement (`services/chatbot_service.py`)
 **Status:** ✅ Full Dietary Restriction Management
@@ -157,9 +161,15 @@ CREATE TABLE users (
 4. AllergenService validates against user restrictions →
 5. IF violations found:
    ↳ Send immediate WhatsApp alert (🚨 DIETARY ALERT)
-6. Continue with meal type prompt (with ⚠️ indicators) →
-7. User selects meal type →
-8. Final confirmation includes allergen summary (with 🚨)
+   ↳ Mark meal as 'failed' in database
+   ↳ STOP PROCESSING - Meal NOT logged
+   ↳ User receives "🚫 MEAL NOT LOGGED" message
+   ↳ End flow
+6. ELSE (no violations):
+   ↳ Continue with meal type prompt
+   ↳ User selects meal type
+   ↳ Log meal to database
+   ↳ Send confirmation with nutrition summary
 ```
 
 ### Restriction Management Flow:
@@ -198,6 +208,8 @@ I'll alert you immediately if any meal contains these ingredients.
 ```
 User: [Sends photo of cheese pizza]
 
+Bot: Analyzing your meal...
+
 Bot: 🚨 DIETARY ALERT
 
 ⚠️ ALLERGEN WARNING:
@@ -205,24 +217,13 @@ Bot: 🚨 DIETARY ALERT
 
 ✓ Safe items: none
 
-Bot: Got it! I detected:
-• cheese pizza, 300g ⚠️ Dairy
+🚫 MEAL NOT LOGGED
+This meal was not added to your diary due to dietary restriction violations.
 
-Total: 800 calories, 35g protein
+If this was incorrect, please update your restrictions with:
+"Remove [restriction name]"
 
-⚠️ Contains restricted ingredients
-
-Is this breakfast, lunch, dinner, or snack?
-
-User: lunch
-
-Bot: ✓ Lunch logged (1 items)
-
-🚨 WARNING: Contains Dairy (cheese)
-
-Nutrition: 800 cal, 35g protein, 90g carbs, 35g fat
-
-Today: 1600/2000 cal (80%), 80/150g protein (53%)
+[Meal processing STOPS - no meal type prompt, no logging]
 ```
 
 ### Viewing Restrictions:
