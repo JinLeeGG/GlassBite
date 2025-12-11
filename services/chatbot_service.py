@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, date
 from models import db, User, Meal, FoodItem, DailySummary, Goal
 from sqlalchemy import func
 from services.recommendation_service import recommendation_engine
+from services.allergen_service import allergen_service, parse_user_restrictions
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +140,24 @@ class ChatbotService:
             elif 'snack' in message:
                 meal_type = 'snack'
             return 'recommendation', {'meal_type': meal_type}
+        
+        # ===== DIETARY RESTRICTIONS MANAGEMENT =====
+        if any(phrase in message for phrase in ['my restrictions', 'my allergies', 'set restrictions', 
+                                                'set allergies', 'update restrictions', 'dietary restrictions',
+                                                'i am allergic', "i'm allergic", 'i have allergies',
+                                                'my restrictions are', 'my allergies are']):
+            return 'restrictions_management', {}
+        
+        if any(phrase in message for phrase in ['what are my restrictions', 'show my restrictions',
+                                                'what allergies', 'my dietary', 'show allergies',
+                                                'what am i allergic to']):
+            return 'view_restrictions', {}
+        
+        if 'add' in message and any(word in message for word in ['restriction', 'allergy', 'allergen']):
+            return 'add_restriction', {}
+        
+        if 'remove' in message and any(word in message for word in ['restriction', 'allergy', 'allergen']):
+            return 'remove_restriction', {}
         
         # ===== HELP =====
         if any(word in message for word in ['help', 'what can', 'how do', 'commands']):
@@ -279,6 +298,18 @@ class ChatbotService:
             
             elif question_type == 'history_query':
                 return self.handle_history_query(user_id, params['timeframe'])
+            
+            elif question_type == 'restrictions_management':
+                return self.handle_restrictions_setup(user_id, message_text)
+            
+            elif question_type == 'view_restrictions':
+                return self.handle_view_restrictions(user_id)
+            
+            elif question_type == 'add_restriction':
+                return self.handle_add_restriction(user_id, message_text)
+            
+            elif question_type == 'remove_restriction':
+                return self.handle_remove_restriction(user_id, message_text)
             
             elif question_type == 'help':
                 return self.handle_help()
@@ -746,6 +777,207 @@ Weekend average: {weekend_avg:.0f} cal/day"""
         
         return response.strip()
     
+    def handle_restrictions_setup(self, user_id, message_text):
+        """Set or update dietary restrictions"""
+        
+        # Extract restrictions from message
+        restrictions_part = None
+        
+        # Try to find the restrictions after keywords
+        for keyword in ['restrictions are', 'allergies are', 'allergic to', 'restrictions:', 
+                       'allergies:', 'i have', 'i am', "i'm"]:
+            if keyword in message_text.lower():
+                restrictions_part = message_text.lower().split(keyword)[1].strip()
+                break
+        
+        # Remove common trailing words
+        if restrictions_part:
+            for trailing in [' allergy', ' allergies', ' restriction', ' restrictions']:
+                restrictions_part = restrictions_part.replace(trailing, '')
+        
+        if not restrictions_part:
+            # Just show supported restrictions
+            supported = allergen_service.get_supported_restrictions()
+            return f"""Please specify your dietary restrictions or allergies.
+
+{supported}
+
+Examples:
+• "My allergies are dairy, nuts"
+• "Set restrictions: vegan"
+• "I'm allergic to shellfish"
+• "My restrictions are gluten, dairy, vegetarian"
+"""
+        
+        # Parse and validate
+        parsed = parse_user_restrictions(restrictions_part)
+        
+        if not parsed['allergens'] and not parsed['preferences']:
+            supported = allergen_service.get_supported_restrictions()
+            return f"""I didn't recognize those restrictions.
+
+{supported}
+
+Please try again with supported restrictions."""
+        
+        # Update user
+        user = User.query.get(user_id)
+        user.dietary_restrictions = restrictions_part
+        db.session.commit()
+        
+        logger.info(f"Updated dietary restrictions for user {user_id}: {restrictions_part}")
+        
+        return f"""✅ Dietary restrictions updated!
+
+Your restrictions: {parsed['display']}
+
+I'll alert you immediately if any meal contains these ingredients.
+
+• View anytime: "Show my restrictions"
+• Add more: "Add gluten"
+• Remove: "Remove dairy"
+"""
+    
+    def handle_view_restrictions(self, user_id):
+        """Show current dietary restrictions"""
+        
+        user = User.query.get(user_id)
+        
+        if not user.dietary_restrictions:
+            supported = allergen_service.get_supported_restrictions()
+            return f"""No dietary restrictions set.
+
+{supported}
+
+Set yours: "My allergies are dairy, nuts"
+"""
+        
+        parsed = parse_user_restrictions(user.dietary_restrictions)
+        
+        message = f"🚨 Your dietary restrictions:\n\n{parsed['display']}\n\n"
+        
+        if parsed['allergens']:
+            allergen_names = [allergen_service.allergen_database[a]['display_name'] 
+                            for a in parsed['allergens']]
+            message += f"Allergens: {', '.join(allergen_names)}\n"
+        
+        if parsed['preferences']:
+            pref_names = [allergen_service.dietary_preferences[p]['display_name'] 
+                         for p in parsed['preferences']]
+            message += f"Dietary preferences: {', '.join(pref_names)}\n"
+        
+        message += "\nI'll warn you if meals contain these ingredients."
+        message += "\n\nUpdate: 'My restrictions are dairy,nuts,vegan'"
+        message += "\nAdd: 'Add gluten'"
+        message += "\nRemove: 'Remove dairy'"
+        
+        return message
+    
+    def handle_add_restriction(self, user_id, message_text):
+        """Add new dietary restriction"""
+        
+        user = User.query.get(user_id)
+        
+        # Extract restriction to add
+        restriction_to_add = None
+        for keyword in ['add ', 'add restriction ', 'add allergy ', 'add allergen ']:
+            if keyword in message_text.lower():
+                restriction_to_add = message_text.lower().split(keyword)[1].strip()
+                # Remove trailing words
+                for trailing in [' restriction', ' allergy', ' allergen']:
+                    restriction_to_add = restriction_to_add.replace(trailing, '')
+                break
+        
+        if not restriction_to_add:
+            return """Please specify what to add.
+
+Examples:
+• "Add dairy"
+• "Add vegan"
+• "Add gluten allergy"
+"""
+        
+        # Get current restrictions
+        current = user.dietary_restrictions or ''
+        current_list = [r.strip() for r in current.split(',') if r.strip()]
+        
+        # Add new restriction if not already present
+        if restriction_to_add not in current_list:
+            current_list.append(restriction_to_add)
+        else:
+            return f"'{restriction_to_add}' is already in your restrictions."
+        
+        new_restrictions = ','.join(current_list)
+        parsed = parse_user_restrictions(new_restrictions)
+        
+        if not parsed['allergens'] and not parsed['preferences']:
+            supported = allergen_service.get_supported_restrictions()
+            return f"""'{restriction_to_add}' is not a recognized restriction.
+
+{supported}
+
+Try adding a supported restriction."""
+        
+        user.dietary_restrictions = new_restrictions
+        db.session.commit()
+        
+        logger.info(f"Added restriction '{restriction_to_add}' for user {user_id}")
+        
+        return f"""✅ Added: {restriction_to_add}
+
+Current restrictions: {parsed['display']}
+
+I'll now warn you about {restriction_to_add} in your meals."""
+    
+    def handle_remove_restriction(self, user_id, message_text):
+        """Remove dietary restriction"""
+        
+        user = User.query.get(user_id)
+        
+        if not user.dietary_restrictions:
+            return "You have no dietary restrictions set."
+        
+        # Extract restriction to remove
+        restriction_to_remove = None
+        for keyword in ['remove ', 'remove restriction ', 'remove allergy ', 'remove allergen ']:
+            if keyword in message_text.lower():
+                restriction_to_remove = message_text.lower().split(keyword)[1].strip()
+                # Remove trailing words
+                for trailing in [' restriction', ' allergy', ' allergen']:
+                    restriction_to_remove = restriction_to_remove.replace(trailing, '')
+                break
+        
+        if not restriction_to_remove:
+            return """Please specify what to remove.
+
+Examples:
+• "Remove dairy"
+• "Remove vegan"
+"""
+        
+        # Get current restrictions
+        current_list = [r.strip() for r in user.dietary_restrictions.split(',') if r.strip()]
+        
+        # Remove restriction
+        if restriction_to_remove in current_list:
+            current_list.remove(restriction_to_remove)
+        else:
+            return f"'{restriction_to_remove}' is not in your restrictions.\n\nCurrent: {user.dietary_restrictions}"
+        
+        new_restrictions = ','.join(current_list)
+        user.dietary_restrictions = new_restrictions
+        db.session.commit()
+        
+        logger.info(f"Removed restriction '{restriction_to_remove}' for user {user_id}")
+        
+        if new_restrictions:
+            parsed = parse_user_restrictions(new_restrictions)
+            return f"""✅ Removed: {restriction_to_remove}
+
+Current restrictions: {parsed['display']}"""
+        else:
+            return f"✅ Removed: {restriction_to_remove}\n\nAll restrictions cleared. You have no dietary restrictions set."
+    
     def handle_help(self):
         """Show help message"""
         return """Hey I'm GlassBite! Here's what I can do:
@@ -771,6 +1003,13 @@ PLANNING
 GOALS
 "My goal is 2000 calories" - Set calorie target
 "My protein goal is 150g" - Set protein target
+
+🚨 DIETARY RESTRICTIONS
+"My allergies are dairy, nuts" - Set allergies
+"I'm allergic to shellfish" - Set restrictions
+"Show my restrictions" - View current
+"Add gluten" - Add restriction
+"Remove dairy" - Remove restriction
 
 Just talk naturally! I understand questions in many ways."""
 

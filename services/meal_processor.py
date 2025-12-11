@@ -9,6 +9,7 @@ from models import db, User, Meal, FoodItem, FoodNutrient, DailySummary
 from services.gemini_service import analyze_food_image, detect_non_food_image
 from services.usda_service import get_nutrition_data
 from services.twilio_service import send_whatsapp_message, get_twilio_auth
+from services.allergen_service import detect_ingredients, validate_meal, parse_user_restrictions, allergen_service
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +64,29 @@ class MealProcessor:
                     "I don't see any food in this image. Please send a clear photo of your meal."
                 )
                 return
+                        # Parse user dietary restrictions FIRST
+            user_restrictions = parse_user_restrictions(user.dietary_restrictions or '')
+            logger.info(f"User restrictions: {user_restrictions}")
             
-            # 5. Get nutrition for each food
+            # IMMEDIATE ALLERGEN DETECTION (before USDA lookup)
+            logger.info("Detecting allergens in detected foods...")
+            for food in detected_foods:
+                ingredients = food.get('ingredients', [])
+                allergen_info = detect_ingredients(food['name'], ingredients)
+                food['detected_allergens'] = allergen_info['detected_allergens']
+                food['detected_ingredients'] = allergen_info['detected_ingredients']
+                logger.info(f"Food '{food['name']}' allergens: {food['detected_allergens']}")
+            
+            # VALIDATE MEAL AGAINST USER RESTRICTIONS
+            validation_result = validate_meal(detected_foods, user_restrictions)
+            
+            # SEND IMMEDIATE ALLERGEN WARNING (if violations found)
+            if validation_result['has_violations']:
+                logger.warning(f"Allergen violations detected for user {user.id}")
+                alert_message = allergen_service.format_alert_message(validation_result)
+                send_whatsapp_message(phone_number, alert_message)
+                logger.info("Allergen alert sent to user")
+                        # 5. Get nutrition for each food
             total_calories = 0
             total_protein = 0
             total_carbs = 0
@@ -449,13 +471,17 @@ class MealProcessor:
     
     def format_meal_confirmation(self, food_items, total_calories, total_protein,
                                  total_carbs, total_fat, daily_totals, goal, 
-                                 low_confidence_foods, meal_type):
-        """Create concise confirmation message (under 1600 chars for Twilio)"""
+                                 low_confidence_foods, meal_type, allergen_summary=None):
+        """Create concise confirmation message with allergen warnings"""
         
         meal_name = meal_type.title()
         item_count = len(food_items)
         
-        message = f"✓ {meal_name} logged ({item_count} items)\n\n"
+        message = f"✓ {meal_name} logged ({item_count} items)\n"
+        
+        # Add allergen warning prominently if present
+        if allergen_summary:
+            message += f"\n🚨 {allergen_summary}\n"
         message += f"Meal: {total_calories:.0f} cal | {total_protein:.0f}g protein | {total_carbs:.0f}g carbs\n"
         message += f"Today: {daily_totals['calories']:.0f} cal | {daily_totals['protein']:.0f}g protein | {daily_totals['carbs']:.0f}g carbs\n"
         
