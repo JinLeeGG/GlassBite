@@ -80,13 +80,15 @@ class MealProcessor:
             # VALIDATE MEAL AGAINST USER RESTRICTIONS
             validation_result = validate_meal(detected_foods, user_restrictions)
             
-            # SEND IMMEDIATE ALLERGEN WARNING (if violations found)
+            # STOP PROCESSING IF ALLERGEN VIOLATIONS DETECTED
             if validation_result['has_violations']:
-                logger.warning(f"Allergen violations detected for user {user.id}")
+                logger.warning(f"Allergen violations detected for user {user.id} - stopping meal logging")
                 alert_message = allergen_service.format_alert_message(validation_result)
                 send_whatsapp_message(phone_number, alert_message)
-                logger.info("Allergen alert sent to user")
-                        # 5. Get nutrition for each food
+                logger.info("Allergen alert sent to user - meal not logged")
+                return  # Stop processing immediately
+            
+            # 5. Get nutrition for each food
             total_calories = 0
             total_protein = 0
             total_carbs = 0
