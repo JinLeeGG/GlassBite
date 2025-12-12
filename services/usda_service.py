@@ -144,13 +144,13 @@ class USDAService:
                 ]
                 
                 # Priority 1: Find NFS (Not Further Specified) items
+                # NFS takes highest priority - ignore avoid_keywords for NFS items
                 nfs_foods = []
                 for food in foods:
                     desc = food.get('description', '').lower()
                     if ', nfs' in desc or ' nfs' in desc:
-                        # Check if it's not a complex dish
-                        if not any(keyword in desc for keyword in avoid_keywords):
-                            nfs_foods.append(food)
+                        # NFS items are always accepted regardless of other keywords
+                        nfs_foods.append(food)
                 
                 # Priority 2: Simple foods without avoid keywords
                 simple_foods = []
