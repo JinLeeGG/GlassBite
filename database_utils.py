@@ -133,7 +133,6 @@ def export_user_data(user_id, format='json'):
     data = {
         'user': {
             'phone_number': user.phone_number,
-            'name': user.name,
             'created_at': user.created_at.isoformat() if user.created_at else None
         },
         'meals': [],
@@ -150,8 +149,8 @@ def export_user_data(user_id, format='json'):
                 {
                     'name': f.name,
                     'portion_grams': f.portion_size_grams,
-                    'calories': f.calories,
-                    'protein_g': f.protein_g
+                    'calories': f.nutrients.calories if f.nutrients else None,
+                    'protein_g': f.nutrients.protein_g if f.nutrients else None
                 } for f in foods
             ]
         })
