@@ -55,18 +55,15 @@ class USDAService:
                 logger.info(f"Using fallback data for: {food_name}")
                 return fallback
             
-            # Search USDA database
-            logger.info(f"Searching USDA for: {food_name}")
-            search_results = self._search_food(food_name)
+            # Extract core food name (remove descriptors and cooking methods)
+            core_name = self._extract_core_food_name(food_name)
+            logger.info(f"Extracted core food name: '{core_name}' from '{food_name}'")
+            
+            # Search USDA database with core name
+            search_results = self._search_food(core_name)
             
             if not search_results:
-                # Try generalized name
-                generalized_name = self._generalize_food_name(food_name)
-                logger.info(f"Trying generalized search: {generalized_name}")
-                search_results = self._search_food(generalized_name)
-            
-            if not search_results:
-                logger.warning(f"No USDA data found for: {food_name}")
+                logger.warning(f"No USDA data found for: {core_name}")
                 return self._estimate_nutrition(food_name, portion_grams)
             
             # Get the best match
@@ -82,14 +79,51 @@ class USDAService:
             logger.error(f"Error getting nutrition for {food_name}: {e}")
             return self._estimate_nutrition(food_name, portion_grams)
     
+    def _extract_core_food_name(self, food_name):
+        """
+        Extract core food name by removing descriptors and cooking methods
+        
+        Examples:
+            "Sliced Meatloaf with Ketchup Glaze" → "Meatloaf"
+            "Steamed Green Beans" → "Green Beans"
+            "Mashed Potatoes" → "Potatoes"
+            "Grilled Chicken Breast" → "Chicken Breast"
+        """
+        # Words that signal end of core food name
+        stop_words = ['with', 'in', 'on', 'topped', 'covered', 'drizzled', 'glazed']
+        
+        # Cooking methods and descriptors to remove
+        descriptors = [
+            'sliced', 'diced', 'chopped', 'minced', 'shredded', 'grated',
+            'steamed', 'boiled', 'grilled', 'fried', 'baked', 'roasted', 'sauteed',
+            'pan-fried', 'deep-fried', 'stir-fried', 'broiled', 'braised',
+            'fresh', 'raw', 'cooked', 'prepared', 'homemade', 'frozen', 'canned'
+        ]
+        
+        # Split and lowercase
+        words = food_name.lower().split()
+        core_words = []
+        
+        for word in words:
+            # Stop at connector words
+            if word in stop_words:
+                break
+            # Skip descriptors
+            if word not in descriptors:
+                core_words.append(word)
+        
+        # Join and return (limit to 3 words max for core food name)
+        result = ' '.join(core_words[:3])
+        return result if result else food_name
+    
     def _search_food(self, food_name):
-        """Search USDA FoodData Central with smart filtering"""
+        """Search USDA FoodData Central with NFS priority"""
         try:
             url = f"{self.base_url}/foods/search"
             params = {
                 'api_key': self.api_key,
                 'query': food_name,
-                'pageSize': 10,
+                'pageSize': 50,
                 'dataType': ['Survey (FNDDS)', 'Foundation', 'SR Legacy']
             }
             
@@ -101,96 +135,48 @@ class USDAService:
             if 'foods' in data and len(data['foods']) > 0:
                 foods = data['foods']
                 
-                # Exclude keywords (compound dishes, processed foods)
-                exclude_keywords = [
-                    'butter', 'oil', 'dressing', 'sauce', 'paste', 'powder',
-                    'chips', 'tots', 'bread', 'cake', 'pie', 'nectar',
-                    'with', 'and ', ' in ', 'salad', 'soup', 'stew',
-                    'flavored', 'seasoned', 'marinated', 'breaded',
-                    'lomi', 'candied', 'benedict', 'deviled', 'creamed',
-                    'strawberry', 'blueberry', 'vanilla', 'chocolate',
-                    'flour', 'cracker', 'pudding', 'split', 'burrito',
-                    'casserole', 'mashed', 'roll', 'beans', 'baked',
-                    'white', 'yolk', 'dehydrated', 'overripe',
-                    'canned', 'juice', 'pickled', 'honey', 'roasted',
-                    'fat free', 'nonfat', 'lowfat', 'reduced fat',
-                    'dried', 'frozen', 'sweetened', 'imitation',
-                    'yogurt', 'topping', 'fried', 'peel'
+                # Complex dishes to avoid
+                avoid_keywords = [
+                    'sandwich', 'casserole', 'salad', 'soup', 'stew',
+                    'frozen meal', 'dinner', 'entree', 'fast food',
+                    'restaurant', 'chain', 'pizza', 'burger', 'wrap',
+                    'burrito', 'taco', 'quesadilla', 'pie', 'cake'
                 ]
                 
-                # Priority keywords (cooking methods for real food)
-                priority_keywords = ['raw', 'cooked', 'baked', 'roasted', 'grilled', 'steamed', 'boiled']
-                
-                # Bonus keywords (simple/plain foods)
-                bonus_keywords = ['plain', 'nfs', 'unsalted', 'unflavored', 'whole', 'regular', 'peeled']
-                
-                # Filter and score
-                scored_foods = []
+                # Priority 1: Find NFS (Not Further Specified) items
+                nfs_foods = []
                 for food in foods:
-                    description = food.get('description', '').lower()
-                    score = 100  # Base score
-                    
-                    # Strong penalty for exclude keywords
-                    has_exclude = False
-                    for kw in exclude_keywords:
-                        if kw in description:
-                            score -= 50
-                            has_exclude = True
-                            break
-                    
-                    # Check if all words from food_name appear in description
-                    food_words = set(food_name.lower().split())
-                    desc_first_part = description.split(',')[0]
-                    desc_words = set(desc_first_part.split())
-                    
-                    # All food name words in description
-                    if food_words.issubset(desc_words):
-                        score += 30
-                    
-                    # Description starts with food name
-                    if description.startswith(food_name.lower()):
-                        score += 20
-                    
-                    # Has cooking method keyword
-                    has_priority = False
-                    for kw in priority_keywords:
-                        if kw in description:
-                            score += 15
-                            has_priority = True
-                            break
-                    
-                    # Has bonus keywords (plain/simple foods)
-                    for kw in bonus_keywords:
-                        if kw in description:
-                            score += 20
-                            break
-                    
-                    # Prefer shorter descriptions (simpler foods)
-                    word_count = len(desc_first_part.split())
-                    if word_count <= 3:
-                        score += 10
-                    elif word_count <= 5:
-                        score += 5
-                    
-                    # Prefer Foundation and SR Legacy types
-                    data_type = food.get('dataType', '')
-                    if data_type in ['Foundation', 'SR Legacy']:
-                        score += 5
-                    
-                    scored_foods.append((score, food, description))
+                    desc = food.get('description', '').lower()
+                    if ', nfs' in desc or ' nfs' in desc:
+                        # Check if it's not a complex dish
+                        if not any(keyword in desc for keyword in avoid_keywords):
+                            nfs_foods.append(food)
                 
-                # Sort by score
-                scored_foods.sort(key=lambda x: x[0], reverse=True)
+                # Priority 2: Simple foods without avoid keywords
+                simple_foods = []
+                for food in foods:
+                    desc = food.get('description', '').lower()
+                    if not any(keyword in desc for keyword in avoid_keywords):
+                        simple_foods.append(food)
                 
-                # Log top 3 matches for debugging
-                logger.info(f"Top 3 matches for '{food_name}':")
-                for i, (score, food, desc) in enumerate(scored_foods[:3], 1):
-                    logger.info(f"  {i}. [{score}] {desc}")
+                # Choose best match
+                if nfs_foods:
+                    selected_foods = nfs_foods
+                    logger.info(f"✓ Found NFS item for '{food_name}'")
+                elif simple_foods:
+                    selected_foods = simple_foods
+                    logger.info(f"Found simple food for '{food_name}'")
+                else:
+                    selected_foods = foods
+                    logger.info(f"Using default results for '{food_name}'")
                 
-                # Filter out negative scores
-                filtered = [food for score, food, desc in scored_foods if score > 0]
+                # Log top 3 results
+                logger.info(f"USDA search results for '{food_name}':")
+                for i, food in enumerate(selected_foods[:3], 1):
+                    desc = food.get('description', '')
+                    logger.info(f"  {i}. {desc}")
                 
-                return filtered if filtered else [scored_foods[0][1]]
+                return selected_foods
             
             return None
             
@@ -300,20 +286,6 @@ class USDAService:
             return scaled
         
         return None
-    
-    def _generalize_food_name(self, food_name):
-        """
-        Simplify food name for better USDA matching
-        Example: "grilled chicken breast" -> "chicken breast"
-        """
-        # Remove cooking methods
-        cooking_methods = ['grilled', 'fried', 'baked', 'roasted', 'steamed', 
-                          'boiled', 'sauteed', 'pan-fried', 'deep-fried']
-        
-        words = food_name.lower().split()
-        filtered_words = [w for w in words if w not in cooking_methods]
-        
-        return ' '.join(filtered_words)
     
     def _estimate_nutrition(self, food_name, portion_grams):
         """
