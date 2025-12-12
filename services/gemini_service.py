@@ -14,12 +14,19 @@ from config import Config
 logger = logging.getLogger(__name__)
 
 # Configure Gemini API
-genai.configure(api_key=Config.GEMINI_API_KEY)
+if Config.GEMINI_API_KEY:
+    genai.configure(api_key=Config.GEMINI_API_KEY)
 
 class GeminiService:
     """Service for analyzing food images with Gemini AI"""
     
     def __init__(self):
+        try:
+            Config.validate_service('gemini')
+        except ValueError as e:
+            logger.error(f"Gemini service initialization failed: {e}")
+            raise
+        
         self.model = genai.GenerativeModel('gemini-2.5-flash')
     
     def analyze_food_image(self, image_url, voice_note_text, twilio_auth):

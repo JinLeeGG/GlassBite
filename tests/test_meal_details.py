@@ -17,7 +17,7 @@ def test_meal_details():
     
     with app.app_context():
         # 1. Get or create test user
-        test_phone = "whatsapp:+12233392848"
+        test_phone = "whatsapp:+1234567890"
         user = User.query.filter_by(phone_number=test_phone).first()
         
         if not user:
