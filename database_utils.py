@@ -2,7 +2,7 @@
 Database utility functions and helper queries
 """
 
-from models import db, User, Meal, FoodItem, DailySummary, Goal
+from models import db, User, Meal, FoodItem, FoodNutrient, DailySummary, Goal
 from datetime import datetime, timedelta, date
 from sqlalchemy import func
 
@@ -73,7 +73,9 @@ def get_popular_foods(limit=20):
         FoodItem.name,
         func.count(FoodItem.id).label('count'),
         func.avg(FoodItem.portion_size_grams).label('avg_portion'),
-        func.avg(FoodItem.calories).label('avg_calories')
+        func.avg(FoodNutrient.calories).label('avg_calories')
+    ).join(
+        FoodNutrient, FoodItem.id == FoodNutrient.food_item_id, isouter=True
     ).group_by(
         FoodItem.name
     ).order_by(
