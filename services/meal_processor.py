@@ -543,8 +543,8 @@ class MealProcessor:
                 n = item.nutrients
                 if n:
                     message += f"{item.name} ({item.portion_size_grams:.0f}g)\n"
-                    message += f"{n.calories:.0f} cal | {n.protein_g:.0f}g protein | {n.carbs_g:.0f}g carbs | {n.fat_g:.0f}g fat\n"
-                    message += f"Fiber: {n.fiber_g:.0f}g | Sugar: {n.sugar_g:.0f}g | Sodium: {n.sodium_mg:.0f}mg\n\n"
+                    message += f"{n.calories or 0:.0f} cal | {n.protein_g or 0:.0f}g protein | {n.carbs_g or 0:.0f}g carbs | {n.fat_g or 0:.0f}g fat\n"
+                    message += f"Fiber: {n.fiber_g or 0:.0f}g | Sugar: {n.sugar_g or 0:.0f}g | Sodium: {n.sodium_mg or 0:.0f}mg\n\n"
             
             # Last message includes totals
             if batch_num == total_batches - 1:
