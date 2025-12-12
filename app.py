@@ -8,6 +8,7 @@ from config import Config
 from models import db, User
 from services.meal_processor import process_meal
 from services.chatbot_service import handle_chatbot_question
+from database_utils import get_or_create_user
 import logging
 import os
 
@@ -241,23 +242,6 @@ def stats():
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         return jsonify({'error': 'Could not retrieve stats'}), 500
-
-
-def get_or_create_user(phone_number):
-    """Helper function to get or create user"""
-    # Ensure phone number has whatsapp: prefix
-    if not phone_number.startswith('whatsapp:'):
-        phone_number = f'whatsapp:{phone_number}'
-    
-    user = User.query.filter_by(phone_number=phone_number).first()
-    
-    if not user:
-        user = User(phone_number=phone_number)
-        db.session.add(user)
-        db.session.commit()
-        logger.info(f"Created new user: {phone_number}")
-    
-    return user
 
 
 @app.errorhandler(404)

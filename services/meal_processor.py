@@ -10,6 +10,7 @@ from services.gemini_service import analyze_food_image, detect_non_food_image
 from services.usda_service import get_nutrition_data
 from services.twilio_service import send_whatsapp_message, get_twilio_auth
 from services.allergen_service import detect_ingredients, validate_meal, parse_user_restrictions, allergen_service
+from database_utils import get_or_create_user
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class MealProcessor:
         """
         try:
             # 1. Get or create user
-            user = self.get_or_create_user(phone_number)
+            user = get_or_create_user(phone_number)
             
             # 2. Send immediate response
             send_whatsapp_message(phone_number, "Analyzing your meal...")
@@ -210,23 +211,6 @@ class MealProcessor:
                 phone_number,
                 "Sorry, I couldn't analyze your meal. Please try again with better lighting."
             )
-    
-    def get_or_create_user(self, phone_number):
-        """Get existing user or create new one"""
-        
-        # Ensure phone number has whatsapp: prefix
-        if not phone_number.startswith('whatsapp:'):
-            phone_number = f'whatsapp:{phone_number}'
-        
-        user = User.query.filter_by(phone_number=phone_number).first()
-        
-        if not user:
-            user = User(phone_number=phone_number)
-            db.session.add(user)
-            db.session.commit()
-            logger.info(f"Created new user: {phone_number}")
-        
-        return user
     
     def determine_meal_type(self):
         """Determine meal type based on time of day"""

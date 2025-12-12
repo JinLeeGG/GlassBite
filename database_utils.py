@@ -179,6 +179,33 @@ def export_user_data(user_id, format='json'):
         return data
 
 
+def get_or_create_user(phone_number):
+    """Get existing user or create new one
+    
+    Args:
+        phone_number: Phone number (with or without whatsapp: prefix)
+    
+    Returns:
+        User object
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Ensure phone number has whatsapp: prefix
+    if not phone_number.startswith('whatsapp:'):
+        phone_number = f'whatsapp:{phone_number}'
+    
+    user = User.query.filter_by(phone_number=phone_number).first()
+    
+    if not user:
+        user = User(phone_number=phone_number)
+        db.session.add(user)
+        db.session.commit()
+        logger.info(f"Created new user: {phone_number}")
+    
+    return user
+
+
 if __name__ == '__main__':
     # Example usage
     from app import app
