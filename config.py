@@ -34,19 +34,49 @@ class Config:
     @staticmethod
     def validate():
         """Validate that all required configuration is present"""
-        required = [
-            'TWILIO_ACCOUNT_SID',
-            'TWILIO_AUTH_TOKEN',
-            'GEMINI_API_KEY',
-            'USDA_API_KEY'
-        ]
+        required_keys = {
+            'TWILIO_ACCOUNT_SID': 'WhatsApp messaging (Twilio)',
+            'TWILIO_AUTH_TOKEN': 'WhatsApp authentication (Twilio)',
+            'GEMINI_API_KEY': 'Image analysis (Google Gemini AI)',
+            'USDA_API_KEY': 'Nutrition data (USDA FoodData Central)'
+        }
         
         missing = []
-        for key in required:
+        for key, service in required_keys.items():
             if not os.getenv(key):
-                missing.append(key)
+                missing.append(f"{key} ({service})")
         
         if missing:
-            raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+            error_msg = f"Missing required environment variables:\n"
+            for item in missing:
+                error_msg += f"  - {item}\n"
+            raise ValueError(error_msg)
+    
+    @staticmethod
+    def validate_service(service_name):
+        """Validate configuration for a specific service
+        
+        Args:
+            service_name: 'twilio', 'gemini', or 'usda'
+        
+        Raises:
+            ValueError: If required keys for the service are missing
+        """
+        service_keys = {
+            'twilio': ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
+            'gemini': ['GEMINI_API_KEY'],
+            'usda': ['USDA_API_KEY']
+        }
+        
+        if service_name not in service_keys:
+            raise ValueError(f"Unknown service: {service_name}")
+        
+        missing = [key for key in service_keys[service_name] if not os.getenv(key)]
+        
+        if missing:
+            raise ValueError(
+                f"Cannot initialize {service_name.upper()} service. "
+                f"Missing: {', '.join(missing)}"
+            )
         
         return True

@@ -351,7 +351,7 @@ Main webhook for Twilio WhatsApp integration
 
 **Request (from Twilio):**
 
-- `From`: User's WhatsApp number (e.g., `whatsapp:+12233392848`)
+- `From`: User's WhatsApp number (e.g., `whatsapp:+1234567890`)
 - `Body`: Message text
 - `NumMedia`: Number of media attachments
 - `MediaUrl0`: URL of first media attachment

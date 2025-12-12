@@ -13,6 +13,12 @@ class USDAService:
     """Service for retrieving nutrition data from USDA FoodData Central API"""
     
     def __init__(self):
+        try:
+            Config.validate_service('usda')
+        except ValueError as e:
+            logger.error(f"USDA service initialization failed: {e}")
+            raise
+        
         self.api_key = Config.USDA_API_KEY
         self.base_url = "https://api.nal.usda.gov/fdc/v1"
         

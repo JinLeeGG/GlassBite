@@ -13,6 +13,12 @@ class TwilioService:
     """Service for sending WhatsApp messages via Twilio"""
     
     def __init__(self):
+        try:
+            Config.validate_service('twilio')
+        except ValueError as e:
+            logger.error(f"Twilio service initialization failed: {e}")
+            raise
+        
         self.client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
         self.from_number = Config.TWILIO_WHATSAPP_NUMBER
     
