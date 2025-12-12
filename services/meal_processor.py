@@ -5,7 +5,7 @@ Handles the complete pipeline: Image → Gemini → USDA → Database
 
 import logging
 from datetime import datetime, date
-from models import db, User, Meal, FoodItem, FoodNutrient, DailySummary
+from models import db, Meal, FoodItem, FoodNutrient, DailySummary
 from services.gemini_service import analyze_food_image, detect_non_food_image
 from services.usda_service import get_nutrition_data
 from services.twilio_service import send_whatsapp_message, get_twilio_auth
