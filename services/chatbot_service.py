@@ -29,6 +29,21 @@ class ChatbotService:
         message = message_text.lower()
         words = set(message.split())
         
+        # ===== CANCEL PENDING MEAL (check FIRST - immediate action) =====
+        if message.strip() in ['cancel', 'stop']:
+            return 'cancel_meal', {}
+        
+        # ===== DELETE LAST MEAL (check FIRST - immediate action) =====
+        if message.strip() in ['delete', 'remove', 'undo']:
+            return 'delete_meal', {}
+        
+        # Check for delete/remove/undo + last/recent/previous
+        delete_keywords = ['delete', 'remove', 'undo', 'cancel']
+        time_keywords = ['last', 'recent', 'previous', 'latest']
+        
+        if any(dk in message for dk in delete_keywords) and any(tk in message for tk in time_keywords):
+            return 'delete_meal', {}
+        
         # ===== MEAL DETAILS REQUEST (check FIRST - very specific) =====
         if message.strip() in ['detail', 'details', 'list', 'breakdown', 'full']:
             return 'meal_details', {}
@@ -295,7 +310,13 @@ class ChatbotService:
         """Route to appropriate question handler"""
         
         try:
-            if question_type == 'meal_details':
+            if question_type == 'cancel_meal':
+                return self.handle_cancel_meal(user_id)
+            
+            elif question_type == 'delete_meal':
+                return self.handle_delete_meal(user_id)
+            
+            elif question_type == 'meal_details':
                 # Get last meal ID from user object
                 from models import User
                 user = User.query.get(user_id)
@@ -385,6 +406,48 @@ class ChatbotService:
         
         # Return as list (twilio_service will send multiple messages)
         return detail_messages
+    
+    def handle_cancel_meal(self, user_id):
+        """Handle request to cancel pending meal"""
+        from database_utils import cancel_pending_meal
+        
+        result = cancel_pending_meal(user_id)
+        
+        if result['success']:
+            return result['message']
+        else:
+            return result['message']
+    
+    def handle_delete_meal(self, user_id):
+        """Handle request to delete last completed meal"""
+        from database_utils import delete_last_meal
+        
+        result = delete_last_meal(user_id)
+        
+        if not result['success']:
+            return result['message']
+        
+        # Format success message
+        meal_info = result['meal_info']
+        updated = result['updated_totals']
+        
+        message = f"Deleted: {meal_info['meal_type'].title()} ({meal_info['food_count']} items)\n"
+        
+        # Show food items that were deleted with portion sizes
+        if meal_info.get('food_items'):
+            for item in meal_info['food_items'][:9]:  # Show up to 9 items
+                portion = f" ({item['portion_grams']:.0f}g)" if item['portion_grams'] else ""
+                message += f"   {item['name']}{portion}\n"
+            
+            if meal_info['food_count'] > 9:
+                message += f"   +{meal_info['food_count'] - 9} more items\n"
+        
+        message += f"\n   {meal_info['calories']:.0f} cal | {meal_info['protein']:.0f}g protein | {meal_info['carbs']:.0f}g carbs\n\n"
+        
+        message += f"Today updated:\n"
+        message += f"   {updated['calories']:.0f} cal | {updated['protein']:.0f}g protein | {updated['carbs']:.0f}g carbs"
+        
+        return message
     
     def handle_goal_setting(self, user_id, message_text):
         """Parse and set goals from natural language"""
@@ -790,14 +853,14 @@ Weekend average: {weekend_avg:.0f} cal/day"""
             Meal.timestamp >= start_datetime,
             Meal.timestamp <= end_datetime,
             Meal.processing_status == 'completed'
-        ).order_by(Meal.timestamp).all()
+        ).order_by(Meal.timestamp.desc()).all()  # Most recent first
         
         if not meals:
             return f"No meals logged for {timeframe}."
         
         response = f"Meals from {timeframe}:\n\n"
         
-        for meal in meals[:5]:  # Limit to 5 meals
+        for meal in meals[:5]:  # Limit to 5 meals (most recent)
             meal_time = meal.timestamp.strftime('%I:%M %p')
             foods = FoodItem.query.filter_by(meal_id=meal.id).all()
             total_cal = sum(f.nutrients.calories if f.nutrients else 0 for f in foods)

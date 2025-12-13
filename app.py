@@ -85,6 +85,14 @@ def whatsapp_webhook():
             # Get or create user
             user = get_or_create_user(phone_number)
             
+            # Check for cancel command first (before any other processing)
+            if message_text.strip().lower() in ['cancel', 'stop']:
+                from database_utils import cancel_pending_meal
+                result = cancel_pending_meal(user.id)
+                from services.twilio_service import send_whatsapp_message
+                send_whatsapp_message(phone_number, result['message'])
+                return {'status': 'ok'}
+            
             # Check if user has a pending meal waiting for meal type
             from models import Meal
             pending_meal = Meal.query.filter_by(
