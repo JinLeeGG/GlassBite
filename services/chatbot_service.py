@@ -193,6 +193,19 @@ class ChatbotService:
                                                 'i am allergic', "i'm allergic", 'i have allergies']):
             return 'restrictions_management', {}
         
+        # ===== NUTRITION STATUS =====
+        # Daily nutrition status
+        if any(phrase in message for phrase in ['nutrition status', 'my nutrients', 'show nutrients', 
+                                                'nutrient status', 'my nutrition', 'show nutrition',
+                                                'what nutrients']):
+            if 'week' not in message:
+                return 'nutrition_status', {'days': 1}
+        
+        # Weekly nutrition status
+        if any(phrase in message for phrase in ['nutrition week', 'weekly nutrients', 'week nutrients',
+                                                'weekly nutrition', 'nutrition this week']):
+            return 'nutrition_status', {'days': 7}
+        
         # ===== HELP =====
         if any(word in message for word in ['help', 'what can', 'how do', 'commands']):
             return 'help', {}
@@ -350,6 +363,10 @@ class ChatbotService:
             
             elif question_type == 'remove_restriction':
                 return self.handle_remove_restriction(user_id, message_text)
+            
+            elif question_type == 'nutrition_status':
+                days = params.get('days', 1)
+                return self.handle_nutrition_status(user_id, days)
             
             elif question_type == 'help':
                 return self.handle_help()
@@ -1060,6 +1077,237 @@ Current restrictions: {parsed['display']}"""
         else:
             return f"✅ Removed: {restriction_to_remove}\n\nAll restrictions cleared. You have no dietary restrictions set."
     
+    def handle_nutrition_status(self, user_id, days=1):
+        """
+        Show nutrition status with goals for calories/protein/carbs and consumption for all other nutrients
+        
+        Args:
+            user_id: User ID
+            days: Number of days to analyze (1 for daily, 7 for weekly)
+        
+        Returns:
+            Formatted nutrition status message
+        """
+        try:
+            from datetime import datetime, timedelta
+            
+            # Calculate timeframe
+            timeframe = "Today" if days == 1 else "This Week"
+            
+            # Get nutrient totals
+            nutrient_totals = self._calculate_nutrient_totals(user_id, days)
+            
+            if not nutrient_totals:
+                return f"No meals logged yet for {timeframe.lower()}."
+            
+            # Get targets
+            targets = self._get_nutrient_targets(user_id)
+            
+            # Build response
+            response = f"🍽️ *Nutrition Status - {timeframe}*\n\n"
+            
+            # === GOALS SECTION (calories, protein, carbs only) ===
+            response += "📊 *Daily Goals:*\n"
+            
+            # Calories
+            calories = nutrient_totals.get('calories', 0)
+            cal_target = targets.get('calories', 2000)
+            cal_percent = (calories / cal_target * 100) if cal_target > 0 else 0
+            response += self._format_nutrient_line('Calories', calories, cal_target, cal_percent, 'kcal')
+            
+            # Protein
+            protein = nutrient_totals.get('protein', 0)
+            protein_target = targets.get('protein', 50)
+            protein_percent = (protein / protein_target * 100) if protein_target > 0 else 0
+            response += self._format_nutrient_line('Protein', protein, protein_target, protein_percent, 'g')
+            
+            # Carbs
+            carbs = nutrient_totals.get('carbs', 0)
+            carbs_target = targets.get('carbs', 300)
+            carbs_percent = (carbs / carbs_target * 100) if carbs_target > 0 else 0
+            response += self._format_nutrient_line('Carbs', carbs, carbs_target, carbs_percent, 'g')
+            
+            # === OTHER MACROS (no goals/percentages) ===
+            response += "\n💪 *Other Macros:*\n"
+            response += f"Fat: {nutrient_totals.get('fat', 0):.1f}g\n"
+            response += f"Fiber: {nutrient_totals.get('fiber', 0):.1f}g\n"
+            response += f"Sugar: {nutrient_totals.get('sugar', 0):.1f}g\n"
+            response += f"Sodium: {nutrient_totals.get('sodium', 0):.1f}mg\n"
+            
+            # === VITAMINS (no goals/percentages) ===
+            response += "\n🌟 *Vitamins:*\n"
+            response += f"Vitamin A: {nutrient_totals.get('vitamin_a', 0):.1f}µg\n"
+            response += f"Vitamin C: {nutrient_totals.get('vitamin_c', 0):.1f}mg\n"
+            response += f"Vitamin D: {nutrient_totals.get('vitamin_d', 0):.1f}µg\n"
+            response += f"Vitamin B6: {nutrient_totals.get('vitamin_b6', 0):.2f}mg\n"
+            response += f"Folate (B9): {nutrient_totals.get('folate', 0):.1f}µg\n"
+            response += f"Vitamin B12: {nutrient_totals.get('vitamin_b12', 0):.2f}µg\n"
+            response += f"Choline: {nutrient_totals.get('choline', 0):.1f}mg\n"
+            
+            # === MINERALS (no goals/percentages) ===
+            response += "\n⚡ *Minerals:*\n"
+            response += f"Calcium: {nutrient_totals.get('calcium', 0):.1f}mg\n"
+            response += f"Iron: {nutrient_totals.get('iron', 0):.1f}mg\n"
+            response += f"Magnesium: {nutrient_totals.get('magnesium', 0):.1f}mg\n"
+            response += f"Phosphorus: {nutrient_totals.get('phosphorus', 0):.1f}mg\n"
+            response += f"Potassium: {nutrient_totals.get('potassium', 0):.1f}mg\n"
+            response += f"Zinc: {nutrient_totals.get('zinc', 0):.1f}mg\n"
+            response += f"Selenium: {nutrient_totals.get('selenium', 0):.1f}µg\n"
+            
+            # === FATS (no goals/percentages) ===
+            response += "\n🥑 *Fats:*\n"
+            response += f"Saturated Fat: {nutrient_totals.get('saturated_fat', 0):.1f}g\n"
+            response += f"Monounsaturated Fat: {nutrient_totals.get('monounsaturated_fat', 0):.1f}g\n"
+            response += f"Polyunsaturated Fat: {nutrient_totals.get('polyunsaturated_fat', 0):.1f}g\n"
+            response += f"Cholesterol: {nutrient_totals.get('cholesterol', 0):.1f}mg\n"
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error getting nutrition status: {e}")
+            return "Sorry, I couldn't retrieve your nutrition status. Please try again."
+    
+    def _calculate_nutrient_totals(self, user_id, days):
+        """
+        Calculate total nutrient consumption from food_nutrients table
+        
+        Args:
+            user_id: User ID
+            days: Number of days to analyze
+        
+        Returns:
+            Dictionary with all 25 nutrient totals
+        """
+        from datetime import datetime, timedelta
+        from sqlalchemy import func
+        from models import FoodNutrient
+        
+        # Calculate date range
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # Query all meals in timeframe
+        meals = Meal.query.filter(
+            Meal.user_id == user_id,
+            Meal.timestamp >= start_date,
+            Meal.timestamp <= end_date,
+            Meal.processing_status == 'completed'
+        ).all()
+        
+        if not meals:
+            return None
+        
+        # Initialize totals
+        totals = {
+            'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0, 'fiber': 0,
+            'sugar': 0, 'sodium': 0, 'vitamin_a': 0, 'vitamin_c': 0,
+            'vitamin_d': 0, 'vitamin_b6': 0, 'folate': 0,
+            'vitamin_b12': 0, 'calcium': 0, 'iron': 0, 'magnesium': 0,
+            'phosphorus': 0, 'potassium': 0, 'zinc': 0, 'saturated_fat': 0,
+            'monounsaturated_fat': 0, 'polyunsaturated_fat': 0, 'cholesterol': 0,
+            'choline': 0, 'selenium': 0
+        }
+        
+        # Aggregate nutrients from all food items in these meals
+        for meal in meals:
+            for food_item in meal.food_items:
+                # FoodNutrient has a one-to-one relationship with FoodItem
+                nutrient = food_item.nutrients
+                if nutrient:
+                    # Access nutrients as attributes (they are columns, not rows)
+                    totals['calories'] += nutrient.calories or 0
+                    totals['protein'] += nutrient.protein_g or 0
+                    totals['carbs'] += nutrient.carbs_g or 0
+                    totals['fat'] += nutrient.fat_g or 0
+                    totals['fiber'] += nutrient.fiber_g or 0
+                    totals['sugar'] += nutrient.sugar_g or 0
+                    totals['sodium'] += nutrient.sodium_mg or 0
+                    totals['potassium'] += nutrient.potassium_mg or 0
+                    totals['calcium'] += nutrient.calcium_mg or 0
+                    totals['iron'] += nutrient.iron_mg or 0
+                    totals['vitamin_c'] += nutrient.vitamin_c_mg or 0
+                    totals['vitamin_d'] += nutrient.vitamin_d_ug or 0
+                    totals['vitamin_a'] += nutrient.vitamin_a_ug or 0
+                    totals['vitamin_b12'] += nutrient.vitamin_b12_ug or 0
+                    totals['magnesium'] += nutrient.magnesium_mg or 0
+                    totals['zinc'] += nutrient.zinc_mg or 0
+                    totals['phosphorus'] += nutrient.phosphorus_mg or 0
+                    totals['cholesterol'] += nutrient.cholesterol_mg or 0
+                    totals['saturated_fat'] += nutrient.saturated_fat_g or 0
+                    totals['monounsaturated_fat'] += nutrient.monounsaturated_fat_g or 0
+                    totals['polyunsaturated_fat'] += nutrient.polyunsaturated_fat_g or 0
+                    totals['folate'] += nutrient.folate_ug or 0
+                    totals['vitamin_b6'] += nutrient.vitamin_b6_mg or 0
+                    totals['choline'] += nutrient.choline_mg or 0
+                    totals['selenium'] += nutrient.selenium_ug or 0
+        
+        return totals
+    
+    def _get_nutrient_targets(self, user_id):
+        """
+        Get nutrient targets from goals table and RDA defaults
+        
+        Args:
+            user_id: User ID
+        
+        Returns:
+            Dictionary with nutrient targets
+        """
+        from models import Goal
+        
+        # Default RDA values
+        targets = {
+            'calories': 2000,
+            'protein': 50,
+            'carbs': 300,
+            'fat': 65,
+            'fiber': 28,
+            'sugar': 50,
+            'sodium': 2300
+        }
+        
+        # Get custom goals from database
+        goals = Goal.query.filter_by(user_id=user_id).all()
+        for goal in goals:
+            # goal_type format: 'calorie_target', 'protein_target', 'carb_target'
+            goal_type = goal.goal_type.lower().replace('_target', '')
+            # Handle special case for 'carb' -> 'carbs'
+            if goal_type == 'calorie':
+                goal_type = 'calories'
+            elif goal_type == 'carb':
+                goal_type = 'carbs'
+            
+            if goal_type in targets:
+                targets[goal_type] = goal.target_value
+        
+        return targets
+    
+    def _format_nutrient_line(self, name, current, target, percent, unit):
+        """
+        Format a nutrient line with emoji indicator
+        
+        Args:
+            name: Nutrient name
+            current: Current amount
+            target: Target amount
+            percent: Percentage of target (0-100+)
+            unit: Unit (g, mg, kcal)
+        
+        Returns:
+            Formatted string line
+        """
+        # Choose emoji based on percentage
+        if percent >= 100:
+            emoji = "✅"
+        elif percent >= 75:
+            emoji = "🟢"
+        elif percent >= 50:
+            emoji = "🟡"
+        else:
+            emoji = "🔴"
+        
+        return f"{emoji} {name}: {current:.1f}/{target:.1f}{unit} ({percent:.0f}%)\n"
+    
     def handle_help(self):
         """Show help message"""
         return """Hey I'm GlassBite! Here's what I can do:
@@ -1092,6 +1340,11 @@ GOALS
 "Show my restrictions" - View current
 "Add gluten" - Add restriction
 "Remove dairy" - Remove restriction
+
+📊 NUTRITION STATUS
+"Nutrition status" - Full nutrient breakdown (daily)
+"Nutrition week" - Weekly nutrient totals
+"Show nutrients" - View all 25 nutrients tracked
 
 Just talk naturally! I understand questions in many ways."""
 
