@@ -926,7 +926,7 @@ Please try again with supported restrictions."""
         
         logger.info(f"Updated dietary restrictions for user {user_id}: {restrictions_part}")
         
-        return f"""✅ Dietary restrictions updated!
+        return f"""Dietary restrictions updated!
 
 Your restrictions: {parsed['display']}
 
@@ -953,7 +953,7 @@ Set yours: "My allergies are dairy, nuts"
         
         parsed = parse_user_restrictions(user.dietary_restrictions)
         
-        message = f"🚨 Your dietary restrictions:\n\n{parsed['display']}\n\n"
+        message = f"Your dietary restrictions:\n\n{parsed['display']}\n\n"
         
         if parsed['allergens']:
             allergen_names = [allergen_service.allergen_database[a]['display_name'] 
@@ -1022,7 +1022,7 @@ Try adding a supported restriction."""
         
         logger.info(f"Added restriction '{restriction_to_add}' for user {user_id}")
         
-        return f"""✅ Added: {restriction_to_add}
+        return f"""Added: {restriction_to_add}
 
 Current restrictions: {parsed['display']}
 
@@ -1071,11 +1071,11 @@ Examples:
         
         if new_restrictions:
             parsed = parse_user_restrictions(new_restrictions)
-            return f"""✅ Removed: {restriction_to_remove}
+            return f"""Removed: {restriction_to_remove}
 
 Current restrictions: {parsed['display']}"""
         else:
-            return f"✅ Removed: {restriction_to_remove}\n\nAll restrictions cleared. You have no dietary restrictions set."
+            return f"Removed: {restriction_to_remove}\n\nAll restrictions cleared. You have no dietary restrictions set."
     
     def handle_nutrition_status(self, user_id, days=1):
         """
@@ -1104,10 +1104,10 @@ Current restrictions: {parsed['display']}"""
             targets = self._get_nutrient_targets(user_id)
             
             # Build response
-            response = f"🍽️ *Nutrition Status - {timeframe}*\n\n"
+            response = f"*Nutrition Status - {timeframe}*\n\n"
             
             # === GOALS SECTION (calories, protein, carbs only) ===
-            response += "📊 *Daily Goals:*\n"
+            response += "*Daily Goals:*\n"
             
             # Calories
             calories = nutrient_totals.get('calories', 0)
@@ -1128,14 +1128,14 @@ Current restrictions: {parsed['display']}"""
             response += self._format_nutrient_line('Carbs', carbs, carbs_target, carbs_percent, 'g')
             
             # === OTHER MACROS (no goals/percentages) ===
-            response += "\n💪 *Other Macros:*\n"
+            response += "\n*Other Macros:*\n"
             response += f"Fat: {nutrient_totals.get('fat', 0):.1f}g\n"
             response += f"Fiber: {nutrient_totals.get('fiber', 0):.1f}g\n"
             response += f"Sugar: {nutrient_totals.get('sugar', 0):.1f}g\n"
             response += f"Sodium: {nutrient_totals.get('sodium', 0):.1f}mg\n"
             
             # === VITAMINS (no goals/percentages) ===
-            response += "\n🌟 *Vitamins:*\n"
+            response += "\n*Vitamins:*\n"
             response += f"Vitamin A: {nutrient_totals.get('vitamin_a', 0):.1f}µg\n"
             response += f"Vitamin C: {nutrient_totals.get('vitamin_c', 0):.1f}mg\n"
             response += f"Vitamin D: {nutrient_totals.get('vitamin_d', 0):.1f}µg\n"
@@ -1145,7 +1145,7 @@ Current restrictions: {parsed['display']}"""
             response += f"Choline: {nutrient_totals.get('choline', 0):.1f}mg\n"
             
             # === MINERALS (no goals/percentages) ===
-            response += "\n⚡ *Minerals:*\n"
+            response += "\n*Minerals:*\n"
             response += f"Calcium: {nutrient_totals.get('calcium', 0):.1f}mg\n"
             response += f"Iron: {nutrient_totals.get('iron', 0):.1f}mg\n"
             response += f"Magnesium: {nutrient_totals.get('magnesium', 0):.1f}mg\n"
@@ -1155,7 +1155,7 @@ Current restrictions: {parsed['display']}"""
             response += f"Selenium: {nutrient_totals.get('selenium', 0):.1f}µg\n"
             
             # === FATS (no goals/percentages) ===
-            response += "\n🥑 *Fats:*\n"
+            response += "\n*Fats:*\n"
             response += f"Saturated Fat: {nutrient_totals.get('saturated_fat', 0):.1f}g\n"
             response += f"Monounsaturated Fat: {nutrient_totals.get('monounsaturated_fat', 0):.1f}g\n"
             response += f"Polyunsaturated Fat: {nutrient_totals.get('polyunsaturated_fat', 0):.1f}g\n"
@@ -1296,17 +1296,17 @@ Current restrictions: {parsed['display']}"""
         Returns:
             Formatted string line
         """
-        # Choose emoji based on percentage
+        # Choose status indicator based on percentage
         if percent >= 100:
-            emoji = "✅"
+            status = "[100%+]"
         elif percent >= 75:
-            emoji = "🟢"
+            status = "[75%+]"
         elif percent >= 50:
-            emoji = "🟡"
+            status = "[50%+]"
         else:
-            emoji = "🔴"
+            status = "[<50%]"
         
-        return f"{emoji} {name}: {current:.1f}/{target:.1f}{unit} ({percent:.0f}%)\n"
+        return f"{status} {name}: {current:.1f}/{target:.1f}{unit} ({percent:.0f}%)\n"
     
     def handle_help(self):
         """Show help message"""
@@ -1334,14 +1334,14 @@ GOALS
 "My goal is 2000 calories" - Set calorie target
 "My protein goal is 150g" - Set protein target
 
-🚨 DIETARY RESTRICTIONS
+DIETARY RESTRICTIONS
 "My allergies are dairy, nuts" - Set allergies
 "I'm allergic to shellfish" - Set restrictions
 "Show my restrictions" - View current
 "Add gluten" - Add restriction
 "Remove dairy" - Remove restriction
 
-📊 NUTRITION STATUS
+NUTRITION STATUS
 "Nutrition status" - Full nutrient breakdown (daily)
 "Nutrition week" - Weekly nutrient totals
 "Show nutrients" - View all 25 nutrients tracked

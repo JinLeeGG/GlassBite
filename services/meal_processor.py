@@ -93,7 +93,7 @@ class MealProcessor:
                 alert_message = allergen_service.format_alert_message(validation_result)
                 
                 # Add blocking message
-                alert_message += "\n\n🚫 MEAL NOT LOGGED\n"
+                alert_message += "\n\nMEAL NOT LOGGED\n"
                 alert_message += "This meal was not added to your diary due to dietary restriction violations.\n\n"
                 alert_message += "If this was incorrect, please update your restrictions with:\n"
                 alert_message += '"Remove [restriction name]"'
@@ -478,11 +478,11 @@ class MealProcessor:
         meal_name = meal_type.title()
         item_count = len(food_items)
         
-        message = f"✓ {meal_name} logged ({item_count} items)\n"
+        message = f"{meal_name} logged ({item_count} items)\n"
         
         # Add allergen warning prominently if present
         if allergen_summary:
-            message += f"\n🚨 {allergen_summary}\n"
+            message += f"\n{allergen_summary}\n"
         message += f"Meal: {total_calories:.0f} cal | {total_protein:.0f}g protein | {total_carbs:.0f}g carbs\n"
         message += f"Today: {daily_totals['calories']:.0f} cal | {daily_totals['protein']:.0f}g protein | {daily_totals['carbs']:.0f}g carbs\n"
         
@@ -494,13 +494,13 @@ class MealProcessor:
             status = "+" if remaining < 0 else ""
             message += f"\nGoal: {goal.target_value:.0f} cal ({percentage:.0f}%) {status}{abs(remaining):.0f} {'over' if remaining < 0 else 'left'}"
             
-            # Brief status emoji
+            # Brief status indicator
             if percentage < 90:
-                message += " 💪"
+                message += " [Good]"
             elif percentage < 110:
-                message += " 🎯"
+                message += " [On Target]"
             else:
-                message += " ⚠️"
+                message += " [Over]"
             message += "\n"
         
         # Warnings (compact)
@@ -512,7 +512,7 @@ class MealProcessor:
             warnings.append(f"Unsure: {low_confidence_foods[0]}")
         
         if warnings:
-            message += f"\n⚠️ {' | '.join(warnings)}\n"
+            message += f"\n[Warning] {' | '.join(warnings)}\n"
         
         # Offer detailed breakdown
         message += f"\nReply 'detail' or 'list' for full breakdown"
@@ -561,9 +561,9 @@ class MealProcessor:
                     percentage = (daily_totals['calories'] / goal.target_value) * 100
                     message += f"\nGoal: {goal.target_value:.0f} cal → {percentage:.0f}% "
                     if remaining < 0:
-                        message += f"(Over by {abs(remaining):.0f} cal) ⚠️\n"
+                        message += f"(Over by {abs(remaining):.0f} cal) [Over]\n"
                     else:
-                        message += f"({remaining:.0f} cal left) 💪\n"
+                        message += f"({remaining:.0f} cal left) [Good]\n"
                 
                 # Final warnings
                 daily_sodium = daily_totals.get('sodium', 0)
