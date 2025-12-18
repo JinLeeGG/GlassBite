@@ -99,7 +99,7 @@ CRITICAL: Return ONLY a valid JSON array. No markdown formatting, no code blocks
 Format:
 [
   {{
-    "name": "specific food name (e.g., grilled chicken breast, not just chicken)",
+    "name": "simple core food name without cooking methods or descriptors",
     "portion_grams": estimated_weight_in_grams,
     "confidence": score_between_0_and_1,
     "ingredients": ["main ingredient 1", "ingredient 2", "ingredient 3"]
@@ -107,12 +107,23 @@ Format:
 ]
 
 Guidelines:
-- Be specific: "grilled chicken breast" not "chicken"
+- Use simple, core food names WITHOUT cooking methods or descriptors:
+  * ✓ "Hamburger bun" not "Sesame Seed Hamburger Bun"
+  * ✓ "Beef patty" not "Grilled Beef Patty"
+  * ✓ "Chicken breast" not "Grilled Chicken Breast"
+  * ✓ "Potato chips" not "Plain Potato Chips"
+  * ✓ "Green beans" not "Steamed Green Beans"
+  * ✓ "Pizza" not "Cheese Pizza"
+  * Keep names simple for accurate database matching
 - List 2-5 key ingredients per food (focus on allergens):
-  * For "cheese pizza": ["wheat dough", "mozzarella cheese", "tomato sauce"]
-  * For "chicken curry": ["chicken", "coconut milk", "curry spices"]
-  * For "caesar salad": ["romaine lettuce", "parmesan cheese", "caesar dressing", "croutons"]
-- Include cooking method in ingredients if relevant: "fried", "butter-cooked", etc.
+  * For "Pizza": ["wheat dough", "mozzarella cheese", "tomato sauce"]
+  * For "Chicken curry": ["chicken", "coconut milk", "curry spices"]
+  * For "Salad": ["romaine lettuce", "parmesan cheese", "caesar dressing", "croutons"]
+  * For "Hamburger bun": ["wheat flour", "sesame seeds", "yeast"]
+- Include cooking methods and descriptors in ingredients, NOT in name:
+  * Name: "Chicken breast" → Ingredients: ["chicken", "grilled", "olive oil"]
+  * Name: "Beef patty" → Ingredients: ["ground beef", "grilled", "salt", "pepper"]
+  * Name: "Potato chips" → Ingredients: ["potatoes", "fried", "salt"]
 - ALWAYS include common allergens: dairy, nuts, gluten, eggs, soy, shellfish, fish
 - Use standard serving sizes as reference:
   * Standard plate diameter = 10 inches (25cm)

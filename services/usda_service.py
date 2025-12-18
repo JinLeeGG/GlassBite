@@ -123,7 +123,11 @@ class USDAService:
         return result if result else food_name
     
     def _search_food(self, food_name):
-        """Search USDA FoodData Central with NFS priority"""
+        """Search USDA FoodData Central with optimal data sources
+        
+        Uses Survey (FNDDS) for realistic portion data, Foundation for basic ingredients,
+        and SR Legacy as backup for broader coverage. Priority is managed by search logic.
+        """
         try:
             url = f"{self.base_url}/foods/search"
             params = {
@@ -149,32 +153,72 @@ class USDAService:
                     'burrito', 'taco', 'quesadilla', 'pie', 'cake'
                 ]
                 
-                # Priority 1: Find NFS (Not Further Specified) items
-                # NFS takes highest priority - ignore avoid_keywords for NFS items
-                nfs_foods = []
+                # Categorize foods by priority
+                raw_simple = []  # Raw/fresh/simple versions
+                nfs_foods = []  # NFS items matching search
+                simple_matches = []  # Simple foods matching search terms
+                
+                search_terms = food_name.lower().split()
+                
+                # Modifiers that indicate processed/complex versions
+                complex_modifiers = [
+                    'powder', 'dehydrated', 'dried', 'canned', 'frozen', 'juice',
+                    'bread', 'muffin', 'cake', 'dip', 'sauce', 'pickled', 'cooked',
+                    'fried', 'baked', 'roasted', 'grilled', 'boiled', 'steamed'
+                ]
+                
+                # Indicators of simple/raw foods
+                simple_indicators = ['raw', 'fresh']
+                
                 for food in foods:
                     desc = food.get('description', '').lower()
-                    if ', nfs' in desc or ' nfs' in desc:
-                        # NFS items are always accepted regardless of other keywords
+                    desc_clean = desc.replace(',', '')
+                    desc_words = desc_clean.split()
+                    
+                    # Check if all search terms are in description
+                    has_all_terms = all(term in desc_clean for term in search_terms)
+                    
+                    if not has_all_terms:
+                        continue
+                    
+                    # Check for complex modifiers and simple indicators
+                    has_complex_modifier = any(mod in desc for mod in complex_modifiers)
+                    has_simple_indicator = any(ind in desc for ind in simple_indicators)
+                    is_complex_dish = any(keyword in desc for keyword in avoid_keywords)
+                    
+                    # Skip complex dishes unless we're specifically searching for them
+                    if is_complex_dish and not any(keyword in food_name.lower() for keyword in avoid_keywords):
+                        continue
+                    
+                    # Priority 1: Raw/fresh/simple (e.g., "Tomato, raw", "Carrots, fresh")
+                    if has_simple_indicator:
+                        raw_simple.append(food)
+                    # Priority 2: NFS (e.g., "Onions, NFS")
+                    elif ', nfs' in desc or ' nfs' in desc:
                         nfs_foods.append(food)
+                    # Priority 3: Simple matches without complex modifiers
+                    elif not has_complex_modifier:
+                        simple_matches.append(food)
                 
-                # Priority 2: Simple foods without avoid keywords
-                simple_foods = []
-                for food in foods:
-                    desc = food.get('description', '').lower()
-                    if not any(keyword in desc for keyword in avoid_keywords):
-                        simple_foods.append(food)
-                
-                # Choose best match
-                if nfs_foods:
+                # Choose best match with priority order
+                if raw_simple:
+                    selected_foods = raw_simple
+                    logger.info(f"✓✓ Found raw/simple match for '{food_name}'")
+                elif nfs_foods:
                     selected_foods = nfs_foods
                     logger.info(f"✓ Found NFS item for '{food_name}'")
-                elif simple_foods:
-                    selected_foods = simple_foods
-                    logger.info(f"Found simple food for '{food_name}'")
+                elif simple_matches:
+                    selected_foods = simple_matches
+                    logger.info(f"✓ Found simple match for '{food_name}'")
                 else:
-                    selected_foods = foods
-                    logger.info(f"Using default results for '{food_name}'")
+                    # Fallback: simple foods from all results
+                    simple_foods = [f for f in foods if not any(keyword in f.get('description', '').lower() for keyword in avoid_keywords)]
+                    if simple_foods:
+                        selected_foods = simple_foods
+                        logger.info(f"Found simple food for '{food_name}'")
+                    else:
+                        selected_foods = foods
+                        logger.info(f"Using default results for '{food_name}'")
                 
                 # Log top 3 results
                 logger.info(f"USDA search results for '{food_name}':")
