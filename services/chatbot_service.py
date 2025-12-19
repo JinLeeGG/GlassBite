@@ -1360,6 +1360,7 @@ PLANNING
 GOALS
 "My goal is 2000 calories" - Set calorie target
 "My protein goal is 150g" - Set protein target
+"My carb goal is 250g" - Set carb target
 
 DIETARY RESTRICTIONS
 "My allergies are dairy, nuts" - Set allergies
