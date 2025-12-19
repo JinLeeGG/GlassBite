@@ -1372,7 +1372,6 @@ DIETARY RESTRICTIONS
 NUTRITION STATUS
 "Nutrition status" - Full nutrient breakdown (daily)
 "Nutrition week" - Weekly nutrient totals
-"Show nutrients" - View all 25 nutrients tracked
 
 Just talk naturally! I understand questions in many ways."""
 
