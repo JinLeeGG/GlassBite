@@ -159,6 +159,13 @@ class ChatbotService:
         # ===== DIETARY RESTRICTIONS MANAGEMENT =====
         # Check VIEW first (more specific patterns) before SET patterns
         # Use partial matching to handle typos (allegy, allerg, restrict)
+        
+        # Short patterns: "my restriction", "my allergies"
+        if any(phrase in message for phrase in ['my restriction', 'my allergies', 'my allergy',
+                                                'my dietary restriction']):
+            return 'view_restrictions', {}
+        
+        # Longer patterns with action words
         if any(phrase in message for phrase in ['show my', 'what are my', 'view my', 'what is my',
                                                 'list my', 'check my', "what's my"]):
             # If it mentions restriction/allergy-related words (even with typos)
@@ -1357,7 +1364,7 @@ GOALS
 DIETARY RESTRICTIONS
 "My allergies are dairy, nuts" - Set allergies
 "I'm allergic to shellfish" - Set restrictions
-"Show my restrictions" - View current
+"My restriction" or "My allergies" - View current
 "Add gluten" - Add restriction
 "Remove dairy" - Remove restriction
 
