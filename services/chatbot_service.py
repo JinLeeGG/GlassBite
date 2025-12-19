@@ -914,12 +914,20 @@ Examples:
 
 Please try again with supported restrictions."""
         
-        # Update user
+        # Get existing restrictions and ADD new ones (don't overwrite)
         user = User.query.get(user_id)
-        user.dietary_restrictions = restrictions_part
+        current = user.dietary_restrictions or ''
+        current_set = set(r.strip().lower() for r in current.split(',') if r.strip())
+        
+        # Add new restrictions (avoid duplicates)
+        new_restrictions = set(r.strip().lower() for r in restrictions_part.split(',') if r.strip())
+        combined = current_set | new_restrictions  # Union of sets
+        
+        # Normalize and update
+        user.dietary_restrictions = self._normalize_restrictions(','.join(combined))
         db.session.commit()
         
-        logger.info(f"Updated dietary restrictions for user {user_id}: {restrictions_part}")
+        logger.info(f"Added dietary restrictions for user {user_id}: {restrictions_part} (total: {user.dietary_restrictions})")
         
         return f"""Dietary restrictions updated!
 
@@ -1001,7 +1009,7 @@ Examples:
         else:
             return f"'{restriction_to_add}' is already in your restrictions."
         
-        new_restrictions = ','.join(current_list)
+        new_restrictions = self._normalize_restrictions(','.join(current_list))
         parsed = parse_user_restrictions(new_restrictions)
         
         if not parsed['allergens'] and not parsed['preferences']:
@@ -1058,7 +1066,7 @@ Examples:
         else:
             return f"'{restriction_to_remove}' is not in your restrictions.\n\nCurrent: {user.dietary_restrictions}"
         
-        new_restrictions = ','.join(current_list)
+        new_restrictions = self._normalize_restrictions(','.join(current_list))
         user.dietary_restrictions = new_restrictions
         db.session.commit()
         
@@ -1302,6 +1310,23 @@ Current restrictions: {parsed['display']}"""
             status = "[<50%]"
         
         return f"{status} {name}: {current:.1f}/{target:.1f}{unit} ({percent:.0f}%)\n"
+    
+    def _normalize_restrictions(self, restrictions_string):
+        """
+        Normalize and deduplicate dietary restrictions
+        
+        Args:
+            restrictions_string: Comma-separated restrictions (e.g., "dairy,nuts,dairy,gluten")
+        
+        Returns:
+            Normalized string with duplicates removed and sorted (e.g., "dairy,gluten,nuts")
+        """
+        if not restrictions_string:
+            return ''
+        
+        # Remove duplicates and sort (case-insensitive)
+        unique = set(r.strip().lower() for r in restrictions_string.split(',') if r.strip())
+        return ','.join(sorted(unique))
     
     def handle_help(self):
         """Show help message"""
