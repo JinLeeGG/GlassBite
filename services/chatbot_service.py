@@ -283,6 +283,11 @@ class ChatbotService:
         if any(phrase in message_lower for phrase in followup_phrases):
             return True
         
+        # Skip if it's a comparison query (has comparison keywords)
+        comparison_keywords = ['compare', 'vs', 'versus', 'difference']
+        if any(keyword in message_lower for keyword in comparison_keywords):
+            return False
+        
         # Check for standalone followup words (with word boundaries)
         words = message_lower.split()
         standalone_words = ['and', 'also', 'or']
@@ -704,16 +709,6 @@ Progress: {percentage_carbs:.0f}%"""
             if carb_goal and summary and carb_goal.target_value > 0:
                 avg_percentage += (summary.total_carbs / carb_goal.target_value * 100)
                 count += 1
-            
-            if count > 0:
-                avg_percentage /= count
-                if avg_percentage < 50:
-                    response_parts.append("\nKeep going!")
-                elif avg_percentage < 90:
-                    response_parts.append("\nGreat progress!")
-                else:
-                    response_parts.append("\nAlmost there!")
-        
         return "\n\n".join(response_parts)
     
     def handle_comparison(self, user_id):
