@@ -38,7 +38,7 @@ CREATE TABLE food_items (
     confidence_score FLOAT
 );
 
--- 3b. Food Nutrients Table (Detailed nutrition data for each food item)
+-- 4. Food Nutrients Table (Detailed nutrition data for each food item)
 CREATE TABLE food_nutrients (
     id SERIAL PRIMARY KEY,
     food_item_id INTEGER NOT NULL REFERENCES food_items(id) ON DELETE CASCADE UNIQUE,
@@ -73,7 +73,7 @@ CREATE TABLE food_nutrients (
     selenium_ug FLOAT
 );
 
--- 4. Daily Summaries Table
+-- 5. Daily Summaries Table
 CREATE TABLE daily_summaries (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -89,7 +89,7 @@ CREATE TABLE daily_summaries (
     UNIQUE(user_id, date)
 );
 
--- 5. Goals Table
+-- 6. Goals Table
 -- Supports: calorie_target, protein_target, carb_target
 CREATE TABLE goals (
     id SERIAL PRIMARY KEY,
