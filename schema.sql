@@ -43,7 +43,6 @@ CREATE TABLE food_nutrients (
     id SERIAL PRIMARY KEY,
     food_item_id INTEGER NOT NULL REFERENCES food_items(id) ON DELETE CASCADE UNIQUE,
     
-    -- Tier 1: Essential Macronutrients (10 nutrients)
     calories FLOAT,
     protein_g FLOAT,
     carbs_g FLOAT,
@@ -55,7 +54,7 @@ CREATE TABLE food_nutrients (
     calcium_mg FLOAT,
     iron_mg FLOAT,
     
-    -- Tier 2: Important Micronutrients (8 nutrients)
+
     vitamin_c_mg FLOAT,
     vitamin_d_ug FLOAT,
     vitamin_a_ug FLOAT,
@@ -65,7 +64,6 @@ CREATE TABLE food_nutrients (
     phosphorus_mg FLOAT,
     cholesterol_mg FLOAT,
     
-    -- Tier 3: Supplementary Nutrients (7 nutrients)
     saturated_fat_g FLOAT,
     monounsaturated_fat_g FLOAT,
     polyunsaturated_fat_g FLOAT,

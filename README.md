@@ -79,22 +79,11 @@ Google Gemini analyzes meal photos and:
 - Detects non-food images (prevents accidental logging)
 
 ### 2. **25-Nutrient Comprehensive Tracking**
-
-Three-tier nutrition system captures everything:
-
-**Tier 1: Essential Macronutrients (10 nutrients)**
-
 - Calories, Protein, Carbs, Fat
 - Fiber, Sugar, Sodium, Potassium
 - Calcium, Iron
-
-**Tier 2: Important Micronutrients (8 nutrients)**
-
 - Vitamins: C, D, A, B12
 - Minerals: Magnesium, Zinc, Phosphorus, Cholesterol
-
-**Tier 3: Supplementary Nutrients (7 nutrients)**
-
 - Fat types: Saturated, Monounsaturated, Polyunsaturated
 - B-Vitamins: Folate, B6
 - Other: Choline, Selenium
